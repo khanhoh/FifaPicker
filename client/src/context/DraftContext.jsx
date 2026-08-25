@@ -6,6 +6,7 @@ const DraftContext = createContext(null);
 export function DraftProvider({ children }) {
   const socketRef = useRef(null);
   const [draftState, setDraftState] = useState(null);
+  const [banState, setBanState] = useState(null);
 
   // User state: role: 'referee' | 'team' | 'spectator', teamId: 1..4, name
   const [currentUser, setCurrentUser] = useState(() => {
@@ -32,6 +33,10 @@ export function DraftProvider({ children }) {
 
     socket.on('draft_state_update', (state) => {
       setDraftState(state);
+    });
+
+    socket.on('ban_state_update', (state) => {
+      setBanState(state);
     });
 
     socket.on('timer_tick', ({ timeLeft }) => {
@@ -83,7 +88,7 @@ export function DraftProvider({ children }) {
     socketRef.current.emit('pick_player', { player, teamId: currentUser.teamId });
   };
 
-  // Referee Controls
+  // Referee Draft Controls
   const startDraft = () => {
     if (!socketRef.current) return;
     socketRef.current.emit('start_draft', { userRole: currentUser.role });
@@ -109,10 +114,53 @@ export function DraftProvider({ children }) {
     socketRef.current.emit('manual_next_turn', { userRole: currentUser.role });
   };
 
+  // --- MATCH BAN PHASE ACTIONS ---
+  const setupBanPhase = ({ teamAId, teamBId, seriesType, gameNumber }) => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('setup_ban_phase', {
+      teamAId,
+      teamBId,
+      seriesType,
+      gameNumber,
+      userRole: currentUser.role
+    });
+  };
+
+  const toggleBanPlayer = (player) => {
+    if (!socketRef.current) return;
+    if (currentUser.role !== 'team') {
+      setErrorMsg('Chỉ Đội trưởng (Captain) mới có quyền chọn cấm cầu thủ!');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+    socketRef.current.emit('toggle_ban_player', { player, teamId: currentUser.teamId });
+  };
+
+  const lockTeamBans = () => {
+    if (!socketRef.current) return;
+    if (currentUser.role !== 'team') {
+      setErrorMsg('Chỉ Đội trưởng (Captain) mới có quyền khóa cấm cầu thủ!');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+    socketRef.current.emit('lock_team_bans', { teamId: currentUser.teamId });
+  };
+
+  const nextGameBan = () => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('next_game_ban', { userRole: currentUser.role });
+  };
+
+  const resetBanPhase = () => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('reset_ban_phase', { userRole: currentUser.role });
+  };
+
   return (
     <DraftContext.Provider
       value={{
         draftState,
+        banState,
         currentUser,
         loginUser,
         logoutUser,
@@ -122,6 +170,11 @@ export function DraftProvider({ children }) {
         resumeDraft,
         resetDraft,
         manualNextTurn,
+        setupBanPhase,
+        toggleBanPlayer,
+        lockTeamBans,
+        nextGameBan,
+        resetBanPhase,
         errorMsg,
         successMsg
       }}

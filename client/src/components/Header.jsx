@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDraft } from '../context/DraftContext';
 import { FCLogo, TeamLogos } from '../assets/teamLogos';
-import { Play, Pause, RotateCcw, SkipForward, Tv, UserCheck, LogIn, Lock } from 'lucide-react';
+import { Play, Pause, RotateCcw, SkipForward, Tv, UserCheck, LogIn, Lock, Ban } from 'lucide-react';
 
 export default function Header({ onOpenRules, onOpenLogin, currentView, setCurrentView }) {
   const {
@@ -39,7 +39,7 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
           <FCLogo className="w-8 h-8 drop-shadow-[0_0_8px_rgba(0,255,102,0.6)]" />
         </div>
 
-        {/* RULES Pill Button (matching Image 2: cyan/green gradient border) */}
+        {/* RULES Pill Button */}
         <button
           onClick={onOpenRules}
           className="px-3.5 py-1 bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 border border-emerald-400/60 text-neon-green rounded-full text-xs font-black tracking-wider transition shadow-[0_0_10px_rgba(0,255,102,0.2)]"
@@ -47,7 +47,7 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
           RULES
         </button>
 
-        {/* View Switcher */}
+        {/* View Switcher: Broadcast | Picker | Ban */}
         <div className="flex bg-[#0b1220] border border-slate-700/80 rounded-lg p-0.5 text-xs font-semibold">
           <button
             onClick={() => setCurrentView('broadcast')}
@@ -58,7 +58,7 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
             }`}
           >
             <Tv className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Tổng Quan (Broadcast)</span>
+            <span className="hidden md:inline">Tổng Quan</span>
           </button>
           <button
             onClick={() => setCurrentView('picker')}
@@ -69,12 +69,23 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Chọn Cầu Thủ (Picker)</span>
+            <span className="hidden md:inline">Chọn Thẻ</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('ban')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition ${
+              currentView === 'ban'
+                ? 'bg-red-600 text-white font-black shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                : 'text-slate-400 hover:text-red-400'
+            }`}
+          >
+            <Ban className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Cấm Cầu Thủ</span>
           </button>
         </div>
       </div>
 
-      {/* Center: Digital Neon Timer & Turn Banner (Exact Image 1 & 2 layout) */}
+      {/* Center: Digital Neon Timer & Turn Banner */}
       <div className="flex items-center gap-3">
         {/* Digital Timer */}
         <div
@@ -89,7 +100,7 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
           {formatTime(timeLeft)}
         </div>
 
-        {/* YOUR TURN / Turn Status Pill (Exact Image 2 neon green pill) */}
+        {/* YOUR TURN / Turn Status Pill */}
         {isDrafting && (
           <div
             className={`px-3.5 py-1 rounded-full font-black text-xs flex items-center gap-2 uppercase tracking-wider border shadow-lg ${
@@ -118,7 +129,7 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
           </div>
         )}
 
-        {/* Round Badge: S1 / 7 ROUND (Exact Image 1 layout) */}
+        {/* Round Badge */}
         {currentRound && (
           <div className="px-3.5 py-1 bg-black border border-neon-green/80 rounded-full text-xs font-black text-neon-green glow-neon-green shadow-md">
             {currentRound.phase === 'MAIN' ? 'S1' : 'S2'} / {currentRound.label} ROUND

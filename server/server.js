@@ -7,6 +7,7 @@ const cors = require('cors');
 const { getAllSeasons } = require('./excelParser');
 const { searchPlayers, getHandshakeToken } = require('./fifaService');
 const { DraftRoom } = require('./draftEngine');
+const { MatchBanRoom } = require('./banEngine');
 
 const app = express();
 app.use(cors());
@@ -29,8 +30,9 @@ const io = new Server(server, {
   }
 });
 
-// Singleton Draft Room for main session
+// Singleton Draft Room & Match Ban Room
 const room = new DraftRoom('main_room');
+const banRoom = new MatchBanRoom(room);
 
 // Preload handshake token on startup
 getHandshakeToken();
@@ -98,7 +100,7 @@ app.get('/api/players', async (req, res) => {
 });
 
 app.get('/api/draft/state', (req, res) => {
-  res.json({ success: true, data: room.getState() });
+  res.json({ success: true, data: room.getState(), banState: banRoom.getState() });
 });
 
 app.post('/api/draft/start', (req, res) => {
@@ -112,7 +114,7 @@ app.post('/api/draft/reset', (req, res) => {
   res.json({ success: true, message: 'Draft reset' });
 });
 
-// Fallback to React SPA for any other route in production
+// Fallback to React SPA in production
 if (fs.existsSync(clientDistPath)) {
   app.get('*', (req, res, next) => {
     if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) {
@@ -120,6 +122,10 @@ if (fs.existsSync(clientDistPath)) {
     }
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
+}
+
+function broadcastBanState() {
+  io.to(room.roomId).emit('ban_state_update', banRoom.getState());
 }
 
 // Socket.io Realtime Events
@@ -137,6 +143,7 @@ io.on('connection', (socket) => {
       }
     }
     socket.emit('draft_state_update', room.getState());
+    socket.emit('ban_state_update', banRoom.getState());
   });
 
   // 2. Start draft (Referee only)
@@ -144,7 +151,6 @@ io.on('connection', (socket) => {
     if (userRole !== 'referee') {
       return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền bắt đầu phiên Draft!' });
     }
-    console.log('▶️ Draft started by Referee');
     room.startDraft(io);
   });
 
@@ -153,7 +159,6 @@ io.on('connection', (socket) => {
     if (userRole !== 'referee') {
       return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền tạm dừng!' });
     }
-    console.log('⏸️ Draft paused by Referee');
     room.pauseDraft(io);
   });
 
@@ -162,7 +167,6 @@ io.on('connection', (socket) => {
     if (userRole !== 'referee') {
       return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền tiếp tục!' });
     }
-    console.log('▶️ Draft resumed by Referee');
     room.resumeDraft(io);
   });
 
@@ -171,7 +175,6 @@ io.on('connection', (socket) => {
     if (userRole !== 'referee') {
       return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền đặt lại Draft!' });
     }
-    console.log('🔄 Draft reset by Referee');
     room.reset();
     room.broadcastState(io);
   });
@@ -181,17 +184,65 @@ io.on('connection', (socket) => {
     if (userRole !== 'referee') {
       return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền chuyển lượt!' });
     }
-    console.log('⏭️ Manual next turn by Referee');
     room.nextTurn(io);
   });
 
   // 7. Pick player (Captains)
   socket.on('pick_player', ({ player, teamId }) => {
-    console.log(`🎯 Pick attempt by team ${teamId}: ${player?.name} (${player?.season})`);
     const result = room.executePick(player, teamId, io);
     if (!result.valid) {
       socket.emit('pick_rejected', { message: result.error });
     }
+  });
+
+  // --- MATCH BAN PHASE EVENTS ---
+  socket.on('setup_ban_phase', ({ teamAId, teamBId, seriesType, gameNumber, userRole }) => {
+    if (userRole !== 'referee') {
+      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền thiết lập phiên Cấm cầu thủ!' });
+    }
+    banRoom.teamAId = parseInt(teamAId, 10);
+    banRoom.teamBId = parseInt(teamBId, 10);
+    banRoom.seriesType = seriesType || 'BO5';
+    banRoom.currentGame = parseInt(gameNumber, 10) || 1;
+    banRoom.status = 'banning';
+    banRoom.currentBans = { teamA: [], teamB: [] };
+    banRoom.lockedStatus = { teamA: false, teamB: false };
+    console.log(`🚫 Ban phase started for Game ${banRoom.currentGame} (${banRoom.seriesType}): Team ${banRoom.teamAId} vs Team ${banRoom.teamBId}`);
+    broadcastBanState();
+  });
+
+  socket.on('toggle_ban_player', ({ player, teamId }) => {
+    const result = banRoom.toggleBanPlayer(player, teamId);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+    } else {
+      broadcastBanState();
+    }
+  });
+
+  socket.on('lock_team_bans', ({ teamId }) => {
+    const result = banRoom.lockTeamBans(teamId);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+    } else {
+      broadcastBanState();
+    }
+  });
+
+  socket.on('next_game_ban', ({ userRole }) => {
+    if (userRole !== 'referee') {
+      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền chuyển sang ván cấm tiếp theo!' });
+    }
+    banRoom.nextGame();
+    broadcastBanState();
+  });
+
+  socket.on('reset_ban_phase', ({ userRole }) => {
+    if (userRole !== 'referee') {
+      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền đặt lại phiên cấm!' });
+    }
+    banRoom.reset();
+    broadcastBanState();
   });
 
   socket.on('disconnect', () => {

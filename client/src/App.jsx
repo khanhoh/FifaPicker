@@ -3,11 +3,12 @@ import { DraftProvider } from './context/DraftContext';
 import Header from './components/Header';
 import BroadcastBoard from './components/BroadcastBoard';
 import PlayerSearchPicker from './components/PlayerSearchPicker';
+import MatchBanView from './components/MatchBanView';
 import RulesModal from './components/RulesModal';
 import LoginModal from './components/LoginModal';
 
 function MainApp() {
-  const [currentView, setCurrentView] = useState('broadcast'); // 'broadcast' | 'picker'
+  const [currentView, setCurrentView] = useState('broadcast'); // 'broadcast' | 'picker' | 'ban'
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
@@ -25,8 +26,10 @@ function MainApp() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {currentView === 'broadcast' ? (
           <BroadcastBoard />
-        ) : (
+        ) : currentView === 'picker' ? (
           <PlayerSearchPicker />
+        ) : (
+          <MatchBanView />
         )}
       </main>
 
