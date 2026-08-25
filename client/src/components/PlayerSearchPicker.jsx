@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useDraft } from '../context/DraftContext';
 import PlayerCard from './PlayerCard';
-import { Search, RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
-import { TeamLogos } from '../assets/teamLogos';
+import EnhancementBadge from './EnhancementBadge';
+import IconFilterDropdown from './IconFilterDropdown';
+import { Search, RotateCcw, CheckCircle2, AlertCircle, Zap, ChevronDown } from 'lucide-react';
+import { TeamLogo } from '../assets/teamLogos';
 
 const POSITION_GROUPS = {
   ALL: [],
@@ -20,12 +22,49 @@ const DETAILED_POSITIONS = [
   'GK'
 ];
 
+const GOLD_TRAITS = [
+  { value: 'acrobatic-finisher', label: 'Chuyên gia vô lê', id: 50 },
+  { value: 'cross-poacher', label: 'Sát thủ băng cắt', id: 51 },
+  { value: 'line-breaker', label: 'Bậc thầy chạy chỗ', id: 52 },
+  { value: 'wild-tackler', label: 'Cao thủ tắc bóng', id: 53 },
+  { value: 'chaser', label: 'Chuyên gia đeo bám', id: 54 },
+  { value: '2heart', label: 'Người không phổi', id: 55 },
+  { value: 'fighter', label: 'Chặn đà tấn công', id: 56 },
+  { value: 'gk-quick-reaction', label: 'Phản ứng nhanh (GK)', id: 57 },
+  { value: 'commander', label: 'Nhạc trưởng', id: 59 },
+  { value: 'gk-aerial-dominance', label: 'GK áp đảo không chiến', id: 60 },
+  { value: 'blocker', label: 'Chủ động cản phá', id: 62 },
+  { value: 'speedster', label: 'Siêu bứt tốc', id: 63 },
+  { value: 'titan', label: 'Bậc thầy không chiến', id: 64 },
+  { value: 'trickster', label: 'Ảo thuật gia', id: 65 },
+  { value: 'laser-shooter', label: 'Dứt điểm 1 chạm', id: 66 },
+  { value: 'predator', label: 'Siêu đánh chặn', id: 67 },
+  { value: 'gk-dead-eye', label: 'GK bắt bài sút xa', id: 68 }
+].map((trait) => ({
+  ...trait,
+  iconUrl: `https://s1.fifaaddict.com/fo4/traits/trait_icon_${trait.id}.png?20260720`
+}));
+
 function normalizePlayerIdentity(name) {
   return String(name || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function getPositionAccent(position) {
+  if (POSITION_GROUPS.FW.includes(position)) return 'border-red-500 text-red-400';
+  if (POSITION_GROUPS.MF.includes(position)) return 'border-emerald-500 text-emerald-400';
+  if (POSITION_GROUPS.DF.includes(position)) return 'border-blue-500 text-blue-400';
+  return 'border-amber-500 text-amber-400';
+}
+
+function getPositionBadge(position) {
+  if (POSITION_GROUPS.FW.includes(position)) return 'bg-red-600 text-white';
+  if (POSITION_GROUPS.MF.includes(position)) return 'bg-emerald-600 text-white';
+  if (POSITION_GROUPS.DF.includes(position)) return 'bg-blue-600 text-white';
+  return 'bg-amber-500 text-slate-950';
 }
 
 export default function PlayerSearchPicker() {
@@ -37,6 +76,8 @@ export default function PlayerSearchPicker() {
   const [seasonSearchText, setSeasonSearchText] = useState('');
   const [selectedPosGroup, setSelectedPosGroup] = useState('ALL');
   const [selectedDetailPos, setSelectedDetailPos] = useState('ALL');
+  const [selectedTeamColor, setSelectedTeamColor] = useState('');
+  const [selectedTrait, setSelectedTrait] = useState('');
   const [minOvr, setMinOvr] = useState('');
   const [maxOvr, setMaxOvr] = useState('');
   const [minSalary, setMinSalary] = useState('');
@@ -44,6 +85,8 @@ export default function PlayerSearchPicker() {
 
   // Data state
   const [seasons, setSeasons] = useState([]);
+  const [teamColors, setTeamColors] = useState([]);
+  const [teamColorsLoading, setTeamColorsLoading] = useState(true);
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -52,7 +95,6 @@ export default function PlayerSearchPicker() {
   const isCaptain = currentUser.role === 'team';
   const isMyTurn = currentTeam && isCaptain && currentUser.teamId === currentTeam.id && draftState?.status === 'drafting';
   const myTeam = draftState?.teams?.find((t) => t.id === currentUser.teamId) || currentTeam;
-  const MyTeamLogo = myTeam ? (TeamLogos[myTeam.code] || TeamLogos.AMT) : null;
 
   // Build map of picked player identities for exclusive check
   const pickedIdentitiesMap = new Map(draftState?.pickedIdentities || []);
@@ -68,28 +110,41 @@ export default function PlayerSearchPicker() {
       .catch((err) => console.error('Error fetching seasons:', err));
   }, []);
 
+  // Team Color options and icons come from FIFAaddict's Team Color catalog.
+  useEffect(() => {
+    fetch('/api/team-colors')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setTeamColors(data.data);
+      })
+      .catch((err) => console.error('Error fetching Team Colors:', err))
+      .finally(() => setTeamColorsLoading(false));
+  }, []);
+
   // Search function
-  const handleSearch = async (overrideName = null) => {
+  const handleSearch = async (overrideName = null, resetFilters = false) => {
     setLoading(true);
     try {
       const queryName = overrideName !== null ? overrideName : playername;
       const params = new URLSearchParams();
       if (queryName && queryName.trim()) params.append('playername', queryName.trim());
-      if (selectedClass && selectedClass !== 'ALL') params.append('class', selectedClass);
+      if (!resetFilters && selectedClass && selectedClass !== 'ALL') params.append('class', selectedClass);
+      if (!resetFilters && selectedTeamColor) params.append('teamColor', selectedTeamColor);
+      if (!resetFilters && selectedTrait) params.append('trait', selectedTrait);
 
       // Position filter
       let posToQuery = '';
-      if (selectedDetailPos && selectedDetailPos !== 'ALL') {
+      if (!resetFilters && selectedDetailPos && selectedDetailPos !== 'ALL') {
         posToQuery = selectedDetailPos;
-      } else if (selectedPosGroup && selectedPosGroup !== 'ALL') {
-        posToQuery = POSITION_GROUPS[selectedPosGroup][0] || '';
+      } else if (!resetFilters && selectedPosGroup && selectedPosGroup !== 'ALL') {
+        posToQuery = POSITION_GROUPS[selectedPosGroup].join(',');
       }
       if (posToQuery) params.append('pos', posToQuery.toLowerCase());
 
-      if (minOvr) params.append('minOvr', minOvr);
-      if (maxOvr) params.append('maxOvr', maxOvr);
-      if (minSalary) params.append('minSalary', minSalary);
-      if (maxSalary) params.append('maxSalary', maxSalary);
+      if (!resetFilters && minOvr) params.append('minOvr', minOvr);
+      if (!resetFilters && maxOvr) params.append('maxOvr', maxOvr);
+      if (!resetFilters && minSalary) params.append('minSalary', minSalary);
+      if (!resetFilters && maxSalary) params.append('maxSalary', maxSalary);
 
       const res = await fetch(`/api/players?${params.toString()}`);
       const data = await res.json();
@@ -116,7 +171,7 @@ export default function PlayerSearchPicker() {
 
   // Initial load
   useEffect(() => {
-    handleSearch('');
+    handleSearch('', true);
   }, []);
 
   const handleReset = () => {
@@ -125,11 +180,13 @@ export default function PlayerSearchPicker() {
     setSeasonSearchText('');
     setSelectedPosGroup('ALL');
     setSelectedDetailPos('ALL');
+    setSelectedTeamColor('');
+    setSelectedTrait('');
     setMinOvr('');
     setMaxOvr('');
     setMinSalary('');
     setMaxSalary('');
-    handleSearch('');
+    handleSearch('', true);
   };
 
   const handlePickClick = () => {
@@ -203,17 +260,17 @@ export default function PlayerSearchPicker() {
             />
           </div>
 
-          {/* Circular Season Badges Grid */}
+          {/* Official season logo grid */}
           <div className="grid grid-cols-6 sm:grid-cols-8 xl:grid-cols-6 gap-1.5 max-h-36 overflow-y-auto pr-1">
             <button
               onClick={() => setSelectedClass('')}
-              className={`w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-black border transition ${
+              className={`w-11 h-10 rounded-xl flex items-center justify-center text-[10px] font-black border transition ${
                 !selectedClass
                   ? 'border-neon-green bg-emerald-950 text-neon-green glow-neon-green shadow-[0_0_10px_rgba(0,255,102,0.4)]'
                   : 'border-slate-700 bg-slate-900/80 text-slate-400 hover:border-slate-500'
               }`}
             >
-              (All)
+              ALL
             </button>
 
             {filteredSeasons.map((s) => {
@@ -223,13 +280,20 @@ export default function PlayerSearchPicker() {
                   key={s.id}
                   onClick={() => setSelectedClass(s.id === selectedClass ? '' : s.id)}
                   title={`${s.name} (Max +${s.maxPlus} | Bonus +${s.bonus})`}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-[9px] font-extrabold border uppercase tracking-tighter transition relative ${
+                  className={`w-11 h-10 rounded-xl flex items-center justify-center p-1 text-[9px] font-extrabold border uppercase tracking-tighter transition relative ${
                     isSelected
                       ? 'border-neon-green bg-emerald-950 text-neon-green glow-neon-green scale-105 shadow-[0_0_10px_rgba(0,255,102,0.5)]'
                       : 'border-slate-800 bg-[#101828] text-slate-300 hover:border-slate-600'
                   }`}
                 >
-                  {s.id.slice(0, 4)}
+                  {s.seasonLogoUrl ? (
+                    <img
+                      src={s.seasonLogoUrl}
+                      alt={s.name}
+                      className="max-w-9 max-h-7 object-contain drop-shadow"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : s.id.slice(0, 4)}
                 </button>
               );
             })}
@@ -267,17 +331,52 @@ export default function PlayerSearchPicker() {
           </div>
 
           {/* Detail Position Selector */}
-          <select
-            value={selectedDetailPos}
-            onChange={(e) => setSelectedDetailPos(e.target.value)}
-            className="w-full bg-[#101728] border border-slate-700/80 rounded-full px-3.5 py-2 text-xs font-semibold text-slate-300 focus:outline-none focus:ring-1 focus:ring-neon-green shadow-inner"
-          >
-            {DETAILED_POSITIONS.map((pos) => (
-              <option key={pos} value={pos}>
-                {pos === 'ALL' ? 'Detail position (Tất cả)' : `Vị trí: ${pos}`}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={selectedDetailPos}
+              onChange={(e) => setSelectedDetailPos(e.target.value)}
+              className="filter-select w-full appearance-none bg-[#101728] border border-slate-700/80 rounded-full pl-3.5 pr-10 py-2 text-xs font-semibold text-slate-300 shadow-inner focus:outline-none focus:border-emerald-400/80 focus:ring-1 focus:ring-emerald-400/40"
+            >
+              {DETAILED_POSITIONS.map((pos) => (
+                <option key={pos} value={pos}>
+                  {pos === 'ALL' ? 'Tất cả vị trí chi tiết' : pos}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
+        </div>
+
+        {/* Team Color and gold trait filters */}
+        <div className="grid grid-cols-1 gap-2.5">
+          <div>
+            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5">TEAM COLOR</div>
+            <IconFilterDropdown
+              options={teamColors.map((teamColor) => ({
+                value: teamColor.id,
+                label: teamColor.name,
+                iconUrl: teamColor.iconUrl,
+                group: teamColor.typeText
+              }))}
+              value={selectedTeamColor}
+              onChange={setSelectedTeamColor}
+              placeholder="Tất cả Team Color"
+              searchPlaceholder="Tìm đội, quốc gia, Team Color..."
+              loading={teamColorsLoading}
+              grouped
+            />
+          </div>
+
+          <div>
+            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5">GOLD TRAIT</div>
+            <IconFilterDropdown
+              options={GOLD_TRAITS}
+              value={selectedTrait}
+              onChange={setSelectedTrait}
+              placeholder="Tất cả chỉ số ẩn vàng"
+              searchPlaceholder="Tìm chỉ số ẩn vàng..."
+            />
+          </div>
         </div>
 
         {/* OVR Range */}
@@ -291,7 +390,7 @@ export default function PlayerSearchPicker() {
               placeholder="MIN"
               value={minOvr}
               onChange={(e) => setMinOvr(e.target.value)}
-              className="w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner"
+              className="filter-number-input w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner focus:outline-none focus:border-emerald-400/80 focus:ring-1 focus:ring-emerald-400/40"
             />
             <span className="text-slate-500 font-bold">-</span>
             <input
@@ -299,7 +398,7 @@ export default function PlayerSearchPicker() {
               placeholder="MAX"
               value={maxOvr}
               onChange={(e) => setMaxOvr(e.target.value)}
-              className="w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner"
+              className="filter-number-input w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner focus:outline-none focus:border-emerald-400/80 focus:ring-1 focus:ring-emerald-400/40"
             />
           </div>
         </div>
@@ -315,7 +414,7 @@ export default function PlayerSearchPicker() {
               placeholder="MIN"
               value={minSalary}
               onChange={(e) => setMinSalary(e.target.value)}
-              className="w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner"
+              className="filter-number-input w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner focus:outline-none focus:border-emerald-400/80 focus:ring-1 focus:ring-emerald-400/40"
             />
             <span className="text-slate-500 font-bold">-</span>
             <input
@@ -323,7 +422,7 @@ export default function PlayerSearchPicker() {
               placeholder="MAX"
               value={maxSalary}
               onChange={(e) => setMaxSalary(e.target.value)}
-              className="w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner"
+              className="filter-number-input w-full bg-[#101728] border border-slate-700/80 rounded-full px-3 py-1.5 text-xs text-center text-white shadow-inner focus:outline-none focus:border-emerald-400/80 focus:ring-1 focus:ring-emerald-400/40"
             />
           </div>
         </div>
@@ -370,9 +469,6 @@ export default function PlayerSearchPicker() {
               SEARCHED PLAYER LIST ({players.length} players)
             </span>
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-slate-500 hidden sm:inline">
-                Cuộn xuống để xem thêm cầu thủ ⬇️
-              </span>
               {loading && (
                 <span className="text-xs font-bold text-neon-green animate-pulse">
                   Đang tải dữ liệu...
@@ -381,21 +477,23 @@ export default function PlayerSearchPicker() {
             </div>
           </div>
 
-          {/* Explicitly bounded height container with smooth vertical scrolling */}
-          <div className="h-64 sm:h-72 md:h-80 overflow-y-auto overflow-x-hidden pr-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 bg-[#0a101d] z-20 shadow-md">
-                <tr className="text-slate-400 border-b border-slate-700 text-[11px] bg-[#0d1422]">
-                  <th className="py-2.5 px-3 font-bold">PLAYER</th>
-                  <th className="py-2.5 px-3 font-bold">POS</th>
-                  <th className="py-2.5 px-3 font-bold">OVR</th>
-                  <th className="py-2.5 px-3 font-bold">SAL</th>
+          {/* FIFAaddict-style compact player database rows */}
+          <div className="h-[28rem] md:h-[32rem] overflow-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
+            <table className="w-full min-w-[980px] text-left text-xs border-collapse">
+              <thead className="sticky top-0 bg-[#303640] z-20 shadow-md">
+                <tr className="text-slate-300 border-b-2 border-amber-500/70 bg-[#303640]">
+                  <th className="w-[90px] py-2.5 px-3 font-black text-base">POS</th>
+                  <th className="py-2.5 px-3 font-black text-base">NAME</th>
+                  <th className="w-[100px] py-2.5 px-3 font-black text-center">CLUB</th>
+                  <th className="w-[100px] py-2.5 px-3 font-black text-center">FOOT</th>
+                  <th className="w-[74px] py-2.5 px-3 font-black text-center">FP</th>
+                  <th className="w-[82px] py-2.5 px-3 font-black text-center text-amber-400">OVR</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-700/70">
                 {players.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-16 text-slate-500">
+                    <td colSpan={6} className="text-center py-16 text-slate-500">
                       {loading ? 'Đang tải dữ liệu từ FIFAaddict...' : 'Không tìm thấy cầu thủ phù hợp.'}
                     </td>
                   </tr>
@@ -403,50 +501,113 @@ export default function PlayerSearchPicker() {
                   players.map((p) => {
                     const isSelected = selectedPlayer?.id === p.id;
                     const pickedInfo = getPickedInfo(p);
+                    const feet = String(p.weakFoot || '0-0').split('-');
 
                     return (
                       <tr
                         key={p.id}
                         onClick={() => setSelectedPlayer(p)}
-                        className={`cursor-pointer transition h-11 ${
+                        className={`cursor-pointer transition h-[76px] ${
                           isSelected
-                            ? 'bg-neon-green text-slate-950 font-black shadow-md'
+                            ? 'bg-[#12352e] text-slate-100 font-black shadow-[inset_4px_0_0_#34d399] ring-1 ring-inset ring-emerald-400/50'
                             : pickedInfo
-                            ? 'opacity-40 bg-slate-900/60 line-through'
-                            : 'hover:bg-slate-800/70 text-slate-200'
+                            ? 'opacity-40 bg-slate-900/60'
+                            : 'hover:bg-[#111c2b] text-slate-200'
                         }`}
                       >
-                        {/* Player name & season crest */}
-                        <td className="py-2 px-3 flex items-center gap-2">
-                          {p.crestUrl && (
+                        <td className="py-2 px-3">
+                          <span className={`inline-block border-l-[5px] pl-2 text-xl font-black font-digital ${isSelected ? 'border-emerald-400 text-emerald-300' : getPositionAccent(p.pos)}`}>
+                            {p.pos}
+                          </span>
+                        </td>
+
+                        <td className="py-1 px-3">
+                          <div className="flex items-center gap-2 min-w-0">
                             <img
-                              src={p.crestUrl}
-                              alt={p.season}
-                              className="w-4 h-4 object-contain shrink-0"
+                              src={p.avatarUrl}
+                              alt={p.name}
+                              className="w-16 h-16 object-contain shrink-0 self-end"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
                             />
-                          )}
-                          <span className="truncate font-semibold">{p.name}</span>
-                          {pickedInfo && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 font-bold border border-red-800 no-underline shrink-0 ml-1">
-                              ĐÃ CHỌN ({pickedInfo.teamName} - {pickedInfo.season?.toUpperCase()})
-                            </span>
-                          )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {p.seasonLogoUrl && (
+                                  <img
+                                    src={p.seasonLogoUrl}
+                                    alt={p.seasonName}
+                                    title={p.seasonName}
+                                    className="w-8 h-8 object-contain shrink-0"
+                                  />
+                                )}
+                                <span className="text-base font-black truncate">{p.name}</span>
+                                {p.traitIconUrl && (
+                                  <img
+                                    src={p.traitIconUrl}
+                                    alt={p.trait}
+                                    title={p.trait}
+                                    className="w-8 h-8 object-contain shrink-0 drop-shadow"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
+                                )}
+                                {pickedInfo && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 shrink-0">
+                                    ĐÃ CHỌN: {pickedInfo.teamName}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="tracking-[-2px]" title={`Skill ${p.skill}/5`}>
+                                  {Array.from({ length: 5 }, (_, index) => (
+                                    <span key={index} className={index < Number(p.skill) ? 'text-amber-400' : 'text-slate-600'}>★</span>
+                                  ))}
+                                </span>
+                                <span className={`px-1.5 py-0.5 rounded font-black ${getPositionBadge(p.pos)}`}>{p.pos}</span>
+                                <span className={isSelected ? 'text-slate-300' : 'text-slate-400'}>{p.baseOvr}</span>
+                              </div>
+                            </div>
+                          </div>
                         </td>
 
-                        {/* Pos */}
-                        <td className={`py-2 px-3 font-extrabold ${isSelected ? 'text-slate-950' : 'text-[#3b82f6]'}`}>
-                          | {p.pos}
+                        <td className="py-2 px-3 text-center">
+                          {p.clubCrestUrl ? (
+                            <img
+                              src={p.clubCrestUrl}
+                              alt={p.clubName}
+                              title={p.clubName}
+                              className="w-10 h-10 mx-auto object-contain"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : <span className="text-slate-600">—</span>}
                         </td>
 
-                        {/* Calculated OVR */}
-                        <td className="py-2 px-3 font-digital font-bold text-sm">
+                        <td className="py-2 px-3 text-center">
+                          <div className="inline-flex items-center text-sm font-black">
+                            {feet.map((value, index) => {
+                              const isPreferred = (index === 0 && p.preferredFoot === 'left') || (index === 1 && p.preferredFoot === 'right');
+                              return (
+                                <span
+                                  key={index}
+                                  title={`${index === 0 ? 'Chân trái' : 'Chân phải'}: ${value}${isPreferred ? ' (chân thuận)' : ''}`}
+                                  className={`w-7 h-9 flex items-center justify-center ${index === 0 ? 'rounded-l-full' : 'rounded-r-full'} ${isPreferred ? 'bg-lime-500 text-slate-950 shadow-[0_0_10px_rgba(132,204,22,0.45)]' : 'bg-slate-600 text-slate-100'}`}
+                                >
+                                  {value}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </td>
+
+                        <td className="py-2 px-3 text-center">
+                          <span className={`inline-flex w-11 h-11 items-center justify-center rounded-full border-4 font-digital text-lg font-black ${isSelected ? 'border-emerald-400/60 bg-emerald-950 text-emerald-100' : 'border-slate-700 bg-[#17222a] text-slate-100'}`}>
+                            {p.salary}
+                          </span>
+                        </td>
+
+                        <td className={`py-2 px-3 text-center font-digital font-black text-xl ${isSelected ? 'text-amber-300' : 'text-fuchsia-400'}`}>
                           {p.ovr}
+                          <div className={`text-[9px] font-sans ${isSelected ? 'text-emerald-200' : 'text-slate-500'}`}>+{p.bonusOvr}</div>
                         </td>
 
-                        {/* Salary */}
-                        <td className="py-2 px-3 font-bold">
-                          {p.salary}
-                        </td>
                       </tr>
                     );
                   })
@@ -479,17 +640,19 @@ export default function PlayerSearchPicker() {
                       {selectedPlayer.name}
                     </div>
                     <div className="text-xs text-slate-400 font-medium mt-1 flex items-center gap-2">
-                      <span>Mùa: <strong className="text-neon-cyan"></strong> {selectedPlayer.season.toUpperCase()}</span>
-                      {selectedPlayer.crestUrl && (
-                        <img src={selectedPlayer.crestUrl} alt="crest" className="h-4 object-contain inline" />
+                      <span>Mùa: <strong className="text-neon-cyan">{selectedPlayer.seasonName}</strong> ({selectedPlayer.season.toUpperCase()})</span>
+                      {selectedPlayer.seasonLogoUrl && (
+                        <img
+                          src={selectedPlayer.seasonLogoUrl}
+                          alt={selectedPlayer.seasonName}
+                          className="h-5 max-w-10 object-contain inline"
+                        />
                       )}
                     </div>
                   </div>
 
                   {selectedPlayer.maxPlus && (
-                    <div className="px-3 py-1 rounded-lg bg-amber-700/90 text-amber-100 font-black text-xs border border-amber-500 shadow-md">
-                      CỘNG TỐI ĐA: +{selectedPlayer.maxPlus}
-                    </div>
+                    <EnhancementBadge level={selectedPlayer.maxPlus} size="lg" className="ml-3" />
                   )}
                 </div>
 
@@ -517,24 +680,28 @@ export default function PlayerSearchPicker() {
                 <button
                   onClick={handlePickClick}
                   disabled={!isMyTurn || selectedPlayerPickedInfo !== null}
-                  className={`w-full py-4 rounded-xl font-black text-base uppercase tracking-wider transition shadow-2xl flex items-center justify-center gap-2 ${
+                  className={`group relative flex w-full items-center justify-center overflow-hidden rounded-xl py-4 text-center text-base font-black uppercase tracking-wider shadow-2xl transition-[transform,background-color,box-shadow,border-color] duration-300 ease-out motion-reduce:transition-none ${
                     !isCaptain
                       ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                       : !isMyTurn
                       ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                       : selectedPlayerPickedInfo
                       ? 'bg-red-950 text-red-400 border border-red-800 cursor-not-allowed'
-                      : 'bg-neon-green hover:bg-emerald-400 text-slate-950 glow-neon-green active:scale-98 animate-pulse shadow-[0_0_20px_rgba(0,255,102,0.6)]'
+                      : 'bg-neon-green text-slate-950 glow-neon-green shadow-[0_0_20px_rgba(0,255,102,0.55)] hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-emerald-300 hover:shadow-[0_0_30px_rgba(0,255,102,0.75)] active:translate-y-0 active:scale-[0.985]'
                   }`}
                 >
                   {!isCaptain ? (
-                    <span>CHỈ CAPTAIN ĐỘI MỚI CÓ QUYỀN PICK</span>
+                    <span className="relative z-10">CHỈ CAPTAIN ĐỘI MỚI CÓ QUYỀN PICK</span>
                   ) : !isMyTurn ? (
-                    <span>CHƯA TỚI LƯỢT (LƯỢT CỦA {currentTeam?.name || '...'})</span>
+                    <span className="relative z-10">CHƯA TỚI LƯỢT (LƯỢT CỦA {currentTeam?.name || '...'})</span>
                   ) : selectedPlayerPickedInfo ? (
-                    <span>CẦU THỦ ĐÃ ĐƯỢC CHỌN ({selectedPlayerPickedInfo.teamName})</span>
+                    <span className="relative z-10">CẦU THỦ ĐÃ ĐƯỢC CHỌN ({selectedPlayerPickedInfo.teamName})</span>
                   ) : (
-                    <span>⚡ PICK</span>
+                    <>
+                      <span aria-hidden="true" className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 transition-transform duration-700 ease-out group-hover:translate-x-[430%] motion-reduce:transition-none" />
+                      <Zap aria-hidden="true" className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-12 -translate-y-1/2 fill-amber-400 text-amber-500 transition-transform duration-300 group-hover:-translate-x-[3.25rem] group-hover:scale-110" />
+                      <span className="relative z-10 block text-center">PICK</span>
+                    </>
                   )}
                 </button>
               </div>
@@ -557,7 +724,7 @@ export default function PlayerSearchPicker() {
           <div className="flex justify-between items-center text-xs">
             <span className="text-slate-400">Đội:</span>
             <div className="flex items-center gap-1.5">
-              {MyTeamLogo && <MyTeamLogo className="w-4 h-4" />}
+              {myTeam && <TeamLogo code={myTeam.code} name={myTeam.name} color={myTeam.color} logoUrl={myTeam.logoUrl} className="w-4 h-4" />}
               <span className="font-extrabold text-neon-cyan">{myTeam?.name}</span>
             </div>
           </div>

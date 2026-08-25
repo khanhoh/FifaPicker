@@ -5,70 +5,105 @@ const fs = require('fs');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { getAllSeasons } = require('./excelParser');
-const { searchPlayers, getHandshakeToken } = require('./fifaService');
-const { DraftRoom } = require('./draftEngine');
-const { MatchBanRoom } = require('./banEngine');
+const { searchPlayers, getHandshakeToken, getTeamColors } = require('./fifaService');
+const { getSeasonMetadataMaps, getFallbackPresentation, seasonTagToAssetCode } = require('./seasonMetadata');
+const { RoomManager } = require('./roomManager');
+
+const SERVER_STARTED_AT = new Date().toISOString();
+const SERVER_MODE = 'fixed-teams-room-v2';
+const SERVER_INSTANCE_ID = `${process.pid}-${Date.now().toString(36)}`;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve public assets (team logos)
 app.use('/logos', express.static(path.join(__dirname, '../client/public/logos')));
 
-// Serve built frontend if exists (Production mode)
 const clientDistPath = path.join(__dirname, '../client/dist');
-if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
-}
+if (fs.existsSync(clientDistPath)) app.use(express.static(clientDistPath));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
+const roomManager = new RoomManager();
 
-// Singleton Draft Room & Match Ban Room
-const room = new DraftRoom('main_room');
-const banRoom = new MatchBanRoom(room);
-
-// Preload handshake token on startup
 getHandshakeToken();
 
-// Credentials config
-const ACCOUNTS = {
-  referee: { role: 'referee', name: 'Trọng Tài / Admin', pass: '123456' },
-  team_1: { role: 'team', teamId: 1, name: 'AMITA FCO', pass: '1111' },
-  team_2: { role: 'team', teamId: 2, name: 'NK FC ONLINE', pass: '2222' },
-  team_3: { role: 'team', teamId: 3, name: 'FOR FUN BROTHER', pass: '3333' },
-  team_4: { role: 'team', teamId: 4, name: 'TAG TEAM', pass: '4444' }
-};
+function sendApiError(res, status, message) {
+  return res.status(status).json({ success: false, message });
+}
 
-// REST API Endpoints
-app.post('/api/login', (req, res) => {
-  const { accountKey, password } = req.body;
-  const acc = ACCOUNTS[accountKey];
-  if (!acc) {
-    return res.status(400).json({ success: false, message: 'Tài khoản không tồn tại!' });
-  }
-  if (acc.pass !== password && password !== 'admin') {
-    return res.status(401).json({ success: false, message: 'Mật khẩu / Mã PIN không chính xác!' });
-  }
-  return res.json({
+app.get('/api/health', (req, res) => {
+  res.json({
     success: true,
-    user: {
-      accountKey,
-      role: acc.role,
-      teamId: acc.teamId || null,
-      name: acc.name
+    service: 'fifa-picker-server',
+    runtime: {
+      instanceId: SERVER_INSTANCE_ID,
+      processId: process.pid,
+      startedAt: SERVER_STARTED_AT,
+      mode: SERVER_MODE,
+      roomCount: roomManager.rooms.size
     }
   });
 });
 
-app.get('/api/seasons', (req, res) => {
-  res.json({ success: true, data: getAllSeasons() });
+app.post('/api/rooms', (req, res) => {
+  try {
+    const result = roomManager.createRoom({ refereeName: req.body?.refereeName });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return sendApiError(res, 500, error.message || 'Không thể tạo room.');
+  }
+});
+
+app.get('/api/rooms/:roomCode', (req, res) => {
+  const room = roomManager.getRoom(req.params.roomCode);
+  if (!room) return sendApiError(res, 404, 'Không tìm thấy room.');
+  return res.json({ success: true, room: roomManager.getPublicRoom(room) });
+});
+
+app.post('/api/rooms/:roomCode/join', (req, res) => {
+  const result = roomManager.joinRoom({
+    roomCode: req.params.roomCode,
+    captainName: req.body?.captainName
+  });
+  if (!result.valid) return sendApiError(res, 400, result.error);
+  return res.status(201).json({ success: true, room: result.room, session: result.session });
+});
+
+app.post('/api/rooms/:roomCode/watch', (req, res) => {
+  const result = roomManager.watchRoom({
+    roomCode: req.params.roomCode,
+    spectatorName: req.body?.spectatorName
+  });
+  if (!result.valid) return sendApiError(res, 400, result.error);
+  return res.status(201).json({ success: true, room: result.room, session: result.session });
+});
+
+app.get('/api/seasons', async (req, res) => {
+  const metadata = await getSeasonMetadataMaps();
+  const seasons = getAllSeasons().map((season) => {
+    const official = metadata.byAssetCode.get(seasonTagToAssetCode(season.id)) || getFallbackPresentation(season.id);
+    return {
+      ...season,
+      name: official.className,
+      seasonId: official.seasonId,
+      seasonLogoUrl: official.seasonImg,
+      cardBackgroundUrl: official.cardBackgroundUrl
+    };
+  });
+  res.json({ success: true, data: seasons });
+});
+
+app.get('/api/team-colors', async (req, res) => {
+  try {
+    const teamColors = await getTeamColors();
+    const publicOptions = teamColors.map(({ query, ...option }) => option);
+    res.json({ success: true, count: publicOptions.length, data: publicOptions });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.get('/api/players', async (req, res) => {
@@ -77,6 +112,8 @@ app.get('/api/players', async (req, res) => {
       class: cardClass,
       pos,
       playername,
+      teamColor,
+      trait,
       minOvr,
       maxOvr,
       minSalary,
@@ -87,170 +124,326 @@ app.get('/api/players', async (req, res) => {
       cardClass,
       pos,
       playername,
+      teamColor,
+      trait,
       minOvr,
       maxOvr,
       minSalary,
       maxSalary
     });
-
     res.json({ success: true, count: players.length, data: players });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.get('/api/draft/state', (req, res) => {
-  res.json({ success: true, data: room.getState(), banState: banRoom.getState() });
-});
-
-app.post('/api/draft/start', (req, res) => {
-  room.startDraft(io);
-  res.json({ success: true, message: 'Draft started' });
-});
-
-app.post('/api/draft/reset', (req, res) => {
-  room.reset();
-  room.broadcastState(io);
-  res.json({ success: true, message: 'Draft reset' });
-});
-
-// Fallback to React SPA in production
 if (fs.existsSync(clientDistPath)) {
   app.get('*', (req, res, next) => {
-    if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) {
-      return next();
-    }
-    res.sendFile(path.join(clientDistPath, 'index.html'));
+    if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) return next();
+    return res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 }
 
-function broadcastBanState() {
-  io.to(room.roomId).emit('ban_state_update', banRoom.getState());
+function emitSessionUpdates(room) {
+  const owners = [room.referee, ...room.participants, ...room.spectators.values()];
+  owners.forEach((owner) => {
+    if (!owner.socketId) return;
+    const session = roomManager.getSessionPayload(owner.token);
+    if (session) io.to(owner.socketId).emit('session_update', session);
+  });
 }
 
-// Socket.io Realtime Events
+function broadcastLobby(room) {
+  io.to(room.code).emit('room_lobby_update', roomManager.getPublicRoom(room));
+  emitSessionUpdates(room);
+}
+
+function broadcastBanState(room) {
+  io.to(room.code).emit('ban_state_update', room.banRoom.getState());
+}
+
+function broadcastAllState(room) {
+  broadcastLobby(room);
+  room.draftRoom.broadcastState(io);
+  broadcastBanState(room);
+}
+
+function getSocketContext(socket) {
+  const context = roomManager.getAuthContext(socket.data.token);
+  if (!context) socket.emit('session_revoked', { message: 'Phiên tham gia room không còn hợp lệ.' });
+  return context;
+}
+
+function requireRole(socket, role, message) {
+  const context = getSocketContext(socket);
+  if (!context) return null;
+  if (context.role !== role) {
+    socket.emit('action_error', { message });
+    return null;
+  }
+  return context;
+}
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!roomManager.getAuthContext(token)) return next(new Error('INVALID_ROOM_SESSION'));
+  socket.data.token = token;
+  return next();
+});
+
 io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
+  const connected = roomManager.connect(socket.data.token, socket.id);
+  if (!connected) {
+    socket.disconnect(true);
+    return;
+  }
 
-  // 1. Join room
-  socket.on('join_room', ({ teamId, role }) => {
-    socket.join(room.roomId);
-    if (teamId) {
-      const team = room.teams.find(t => t.id === parseInt(teamId, 10));
-      if (team) {
-        team.socketId = socket.id;
-        console.log(`👤 Assigned socket ${socket.id} to ${team.name}`);
+  const { room, role, owner, previousSocketId } = connected;
+  if (previousSocketId && previousSocketId !== socket.id) {
+    const previousSocket = io.sockets.sockets.get(previousSocketId);
+    if (previousSocket) {
+      previousSocket.emit('session_replaced', { message: 'Phiên này đã được mở ở một kết nối khác.' });
+      previousSocket.disconnect(true);
+    }
+  }
+
+  socket.join(room.code);
+  socket.emit('session_update', roomManager.getSessionPayload(socket.data.token));
+  socket.emit('room_lobby_update', roomManager.getPublicRoom(room));
+  socket.emit('draft_state_update', room.draftRoom.getState());
+  socket.emit('ban_state_update', room.banRoom.getState());
+  broadcastLobby(room);
+  console.log(`🔌 ${role} connected to room ${room.code}: ${owner.id}`);
+
+  socket.on('start_draft', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền bắt đầu Draft!');
+    if (!context) return;
+    if (!roomManager.canStart(context.room)) {
+      socket.emit('action_error', { message: 'Cần đủ 4 đội đang online trước khi bắt đầu.' });
+      return;
+    }
+    context.room.draftRoom.startDraft(io);
+    broadcastLobby(context.room);
+  });
+
+  socket.on('pause_draft', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền tạm dừng!');
+    if (!context) return;
+    context.room.draftRoom.pauseDraft(io);
+    broadcastLobby(context.room);
+  });
+
+  socket.on('resume_draft', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền tiếp tục!');
+    if (!context) return;
+    context.room.draftRoom.resumeDraft(io);
+    broadcastLobby(context.room);
+  });
+
+  socket.on('reset_draft', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền đặt lại Draft!');
+    if (!context) return;
+    context.room.draftRoom.reset();
+    context.room.banRoom.reset();
+    broadcastAllState(context.room);
+  });
+
+  socket.on('manual_next_turn', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền chuyển lượt!');
+    if (!context) return;
+    context.room.draftRoom.nextTurn(io);
+  });
+
+  socket.on('pick_player', ({ player } = {}) => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain của đội mới có quyền Pick cầu thủ!');
+    if (!context) return;
+    const result = context.room.draftRoom.executePick(player, context.teamId, io);
+    if (!result.valid) socket.emit('pick_rejected', { message: result.error });
+  });
+
+  socket.on('swap_team', ({ targetTeamId } = {}) => {
+    const context = requireRole(socket, 'team', 'Chỉ người chơi mới có thể tự đổi đội!');
+    if (!context) return;
+    const result = roomManager.swapParticipant(context.room, context.owner.id, targetTeamId);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+      return;
+    }
+    broadcastAllState(context.room);
+  });
+
+  socket.on('randomize_teams', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền random vị trí!');
+    if (!context) return;
+    const result = roomManager.randomizeParticipants(context.room);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+      return;
+    }
+    broadcastAllState(context.room);
+  });
+
+  socket.on('destroy_room', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền hủy room!');
+    if (!context) return;
+    const roomCode = context.room.code;
+    io.to(roomCode).emit('session_revoked', { message: `Room ${roomCode} đã bị Trọng tài hủy.` });
+    roomManager.destroyRoom(roomCode);
+    io.in(roomCode).disconnectSockets(true);
+    console.log(`🗑️ Room ${roomCode} destroyed by referee`);
+  });
+
+  socket.on('remove_player', ({ playerId } = {}) => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền xóa đội khỏi Lobby!');
+    if (!context) return;
+    const player = context.room.participants.find((participant) => participant.id === playerId);
+    const result = roomManager.removeParticipant(context.room, playerId);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+      return;
+    }
+    if (player?.socketId) {
+      io.to(player.socketId).emit('session_revoked', { message: 'Trọng tài đã xóa đội khỏi room.' });
+      io.sockets.sockets.get(player.socketId)?.disconnect(true);
+    }
+    broadcastAllState(context.room);
+  });
+
+  socket.on('leave_room', () => {
+    const context = getSocketContext(socket);
+    if (!context) return;
+    if (context.role === 'team') {
+      const result = roomManager.removeParticipant(context.room, context.owner.id);
+      if (!result.valid) {
+        socket.emit('action_error', { message: result.error });
+        return;
       }
+      socket.emit('session_revoked', { message: 'Bạn đã rời room.' });
+      socket.disconnect(true);
+      broadcastAllState(context.room);
+      return;
     }
-    socket.emit('draft_state_update', room.getState());
-    socket.emit('ban_state_update', banRoom.getState());
-  });
-
-  // 2. Start draft (Referee only)
-  socket.on('start_draft', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền bắt đầu phiên Draft!' });
-    }
-    room.startDraft(io);
-  });
-
-  // 3. Pause draft (Referee only)
-  socket.on('pause_draft', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền tạm dừng!' });
-    }
-    room.pauseDraft(io);
-  });
-
-  // 4. Resume draft (Referee only)
-  socket.on('resume_draft', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền tiếp tục!' });
-    }
-    room.resumeDraft(io);
-  });
-
-  // 5. Reset draft (Referee only)
-  socket.on('reset_draft', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền đặt lại Draft!' });
-    }
-    room.reset();
-    room.broadcastState(io);
-  });
-
-  // 6. Manual skip / next turn (Referee only)
-  socket.on('manual_next_turn', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền chuyển lượt!' });
-    }
-    room.nextTurn(io);
-  });
-
-  // 7. Pick player (Captains)
-  socket.on('pick_player', ({ player, teamId }) => {
-    const result = room.executePick(player, teamId, io);
-    if (!result.valid) {
-      socket.emit('pick_rejected', { message: result.error });
+    if (context.role === 'spectator') {
+      context.room.spectators.delete(context.owner.id);
+      roomManager.sessions.delete(context.owner.token);
+      socket.emit('session_revoked', { message: 'Bạn đã rời room.' });
+      socket.disconnect(true);
+      broadcastLobby(context.room);
     }
   });
 
-  // --- MATCH BAN PHASE EVENTS ---
-  socket.on('setup_ban_phase', ({ teamAId, teamBId, seriesType, gameNumber, userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền thiết lập phiên Cấm cầu thủ!' });
-    }
-    banRoom.teamAId = parseInt(teamAId, 10);
-    banRoom.teamBId = parseInt(teamBId, 10);
-    banRoom.seriesType = seriesType || 'BO5';
-    banRoom.currentGame = parseInt(gameNumber, 10) || 1;
-    banRoom.status = 'banning';
-    banRoom.currentBans = { teamA: [], teamB: [] };
-    banRoom.lockedStatus = { teamA: false, teamB: false };
-    console.log(`🚫 Ban phase started for Game ${banRoom.currentGame} (${banRoom.seriesType}): Team ${banRoom.teamAId} vs Team ${banRoom.teamBId}`);
-    broadcastBanState();
-  });
-
-  socket.on('toggle_ban_player', ({ player, teamId }) => {
-    const result = banRoom.toggleBanPlayer(player, teamId);
+  socket.on('setup_ban_phase', ({ teamAId, teamBId, seriesType, gameNumber } = {}) => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền thiết lập phiên Cấm cầu thủ!');
+    if (!context) return;
+    const { banRoom } = context.room;
+    const result = banRoom.setup({ teamAId, teamBId, seriesType, gameNumber });
     if (!result.valid) {
       socket.emit('action_error', { message: result.error });
-    } else {
-      broadcastBanState();
+      return;
     }
+    broadcastBanState(context.room);
   });
 
-  socket.on('lock_team_bans', ({ teamId }) => {
-    const result = banRoom.lockTeamBans(teamId);
+  socket.on('toggle_ban_player', ({ player } = {}) => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền chọn cầu thủ cấm!');
+    if (!context) return;
+    const result = context.room.banRoom.toggleBanPlayer(player, context.teamId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('lock_team_bans', () => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền khóa danh sách cấm!');
+    if (!context) return;
+    const result = context.room.banRoom.lockTeamBans(context.teamId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('next_game_ban', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền chuyển ván cấm!');
+    if (!context) return;
+    const result = context.room.banRoom.nextGame();
     if (!result.valid) {
       socket.emit('action_error', { message: result.error });
-    } else {
-      broadcastBanState();
+      return;
     }
+    broadcastBanState(context.room);
   });
 
-  socket.on('next_game_ban', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền chuyển sang ván cấm tiếp theo!' });
-    }
-    banRoom.nextGame();
-    broadcastBanState();
+  socket.on('set_lineup_formation', ({ formationId } = {}) => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền đổi sơ đồ!');
+    if (!context) return;
+    const result = context.room.banRoom.setLineupFormation(context.teamId, formationId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
   });
 
-  socket.on('reset_ban_phase', ({ userRole }) => {
-    if (userRole !== 'referee') {
-      return socket.emit('action_error', { message: 'Chỉ Trọng tài mới có quyền đặt lại phiên cấm!' });
-    }
-    banRoom.reset();
-    broadcastBanState();
+  socket.on('set_lineup_player', ({ slotId, playerId } = {}) => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền xếp đội hình!');
+    if (!context) return;
+    const result = context.room.banRoom.setLineupPlayer(context.teamId, slotId, playerId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('move_lineup_player', ({ sourceSlotId, targetSlotId } = {}) => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền đổi vị trí cầu thủ!');
+    if (!context) return;
+    const result = context.room.banRoom.moveLineupPlayer(context.teamId, sourceSlotId, targetSlotId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('clear_lineup', () => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền xóa đội hình!');
+    if (!context) return;
+    const result = context.room.banRoom.clearLineup(context.teamId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('lock_lineup', () => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền khóa đội hình!');
+    if (!context) return;
+    const result = context.room.banRoom.lockLineup(context.teamId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('reset_ban_phase', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền đặt lại phiên cấm!');
+    if (!context) return;
+    context.room.banRoom.reset();
+    broadcastBanState(context.room);
   });
 
   socket.on('disconnect', () => {
-    console.log(`❌ Client disconnected: ${socket.id}`);
+    const context = roomManager.disconnect(socket.data.token, socket.id);
+    if (!context) return;
+    console.log(`❌ ${context.role} disconnected from room ${context.room.code}`);
+    broadcastLobby(context.room);
+    context.room.draftRoom.broadcastState(io);
   });
 });
 
+const cleanupInterval = setInterval(() => roomManager.cleanup(), 15 * 60 * 1000);
+cleanupInterval.unref();
+
 const PORT = process.env.PORT || 5000;
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} đang được một backend khác sử dụng.`);
+    console.error(`   Kiểm tra process: ss -ltnp 'sport = :${PORT}'`);
+    process.exitCode = 1;
+    return;
+  }
+  console.error('❌ FIFA Draft Server failed to start:', error);
+  process.exitCode = 1;
+});
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 FIFA Draft Server running at http://0.0.0.0:${PORT}`);
+  console.log(`🧭 Backend ${SERVER_MODE} | PID ${process.pid} | Instance ${SERVER_INSTANCE_ID}`);
 });
+
+module.exports = { app, server, io, roomManager };

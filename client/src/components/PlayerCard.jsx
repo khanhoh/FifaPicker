@@ -1,92 +1,68 @@
 import React from 'react';
-
-const POS_COLORS = {
-  ST: 'text-red-400 border-red-500 bg-red-500/10',
-  CF: 'text-red-400 border-red-500 bg-red-500/10',
-  LW: 'text-red-400 border-red-500 bg-red-500/10',
-  RW: 'text-red-400 border-red-500 bg-red-500/10',
-  CAM: 'text-emerald-400 border-emerald-500 bg-emerald-500/10',
-  CM: 'text-emerald-400 border-emerald-500 bg-emerald-500/10',
-  CDM: 'text-emerald-400 border-emerald-500 bg-emerald-500/10',
-  LM: 'text-emerald-400 border-emerald-500 bg-emerald-500/10',
-  RM: 'text-emerald-400 border-emerald-500 bg-emerald-500/10',
-  CB: 'text-blue-400 border-blue-500 bg-blue-500/10',
-  LB: 'text-blue-400 border-blue-500 bg-blue-500/10',
-  RB: 'text-blue-400 border-blue-500 bg-blue-500/10',
-  LWB: 'text-blue-400 border-blue-500 bg-blue-500/10',
-  RWB: 'text-blue-400 border-blue-500 bg-blue-500/10',
-  GK: 'text-amber-400 border-amber-500 bg-amber-500/10'
-};
+import EnhancementBadge from './EnhancementBadge';
 
 export default function PlayerCard({ player }) {
   if (!player) return null;
 
-  const posColor = POS_COLORS[player.pos] || 'text-slate-300 border-slate-500 bg-slate-500/10';
-
   return (
-    <div className="relative w-56 h-80 rounded-2xl p-4 bg-gradient-to-b from-amber-100 via-amber-200 to-amber-50 text-slate-900 shadow-2xl border-2 border-amber-300 flex flex-col justify-between overflow-hidden">
-      {/* Background patterns */}
-      <div className="absolute inset-0 bg-[radial-gradient(#d97706_1px,transparent_1px)] [background-size:16px_16px] opacity-20 pointer-events-none" />
-      
-      {/* Top section: OVR, POS, Season crest, Max plus */}
-      <div className="relative z-10 flex justify-between items-start">
-        <div>
-          <div className="text-3xl font-black tracking-tighter leading-none font-digital text-slate-950">
-            {player.ovr}
-          </div>
-          <div className="text-sm font-extrabold tracking-wider text-slate-800">
-            {player.pos}
-          </div>
-          {player.maxPlus && (
-            <div className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded bg-amber-700 text-amber-100 text-[10px] font-bold shadow-sm">
-              +{player.maxPlus}
-            </div>
-          )}
-        </div>
+    <div className="relative w-[272px] h-80 bg-transparent text-[#4b3518] drop-shadow-2xl overflow-hidden">
+      {player.cardBackgroundUrl && (
+        <img
+          src={player.cardBackgroundUrl}
+          alt={`Nền thẻ ${player.seasonName}`}
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      )}
 
-        <div className="flex flex-col items-end gap-1">
-          {player.crestUrl && (
-            <img
-              src={player.crestUrl}
-              alt={player.season}
-              className="w-7 h-7 object-contain drop-shadow"
-            />
-          )}
-          {player.nationUrl && (
-            <img
-              src={player.nationUrl}
-              alt="Nation"
-              className="w-5 h-3.5 object-cover rounded-sm shadow-sm"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
-          )}
+      {/* Original FC hierarchy: OVR and position form one block at top-left. */}
+      <div className="absolute z-20 left-[22%] top-[18%] [text-shadow:0_1px_1px_rgba(255,255,255,0.45)]">
+        <div className="text-3xl font-black tracking-tighter leading-none font-digital text-[#4b3518]">
+          {player.ovr}
+        </div>
+        <div className="text-sm font-extrabold tracking-wider leading-tight text-[#4b3518]">
+          {player.pos}
         </div>
       </div>
 
-      {/* Center section: Big Player Avatar */}
-      <div className="relative z-10 flex-1 flex items-center justify-center my-1">
+      {player.maxPlus && (
+        <div className="absolute right-[21%] top-[65%] z-30">
+          <EnhancementBadge level={player.maxPlus} size="card" />
+        </div>
+      )}
+
+      <div className="absolute z-10 inset-x-[7%] top-[25%] bottom-[21%] flex items-end justify-center">
         <img
           src={player.avatarUrl}
           alt={player.name}
-          className="h-44 object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.35)] hover:scale-105 transition duration-300"
-          onError={(e) => {
-            e.target.src = 'https://s1.fifaaddict.com/assets/img/blank.png';
-          }}
+          className="w-full h-full object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.45)] hover:scale-105 transition duration-300"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
       </div>
 
-      {/* Bottom section: Player Name, Salary & Details */}
-      <div className="relative z-10 text-center border-t border-amber-400/60 pt-1.5">
-        <div className="text-sm font-black tracking-tight truncate uppercase text-slate-950">
-          {player.name}
+      {/* The lower artwork remains visible: season + name, then FP badge. */}
+      <div className="absolute z-30 left-[12%] right-[12%] top-[76%] text-center">
+        <div className="flex items-center justify-center gap-1.5 min-w-0">
+          {player.seasonLogoUrl && (
+            <img
+              src={player.seasonLogoUrl}
+              alt={player.seasonName}
+              title={player.seasonName}
+              className="w-7 h-7 object-contain shrink-0 drop-shadow"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          )}
+          <div className="text-sm font-black tracking-tight truncate uppercase text-[#4b3518] [text-shadow:0_1px_1px_rgba(255,255,255,0.5)]">
+            {player.name}
+          </div>
         </div>
-        <div className="flex justify-center items-center gap-2 text-[10px] font-semibold text-slate-700 mt-0.5">
-          <span>Lương: <strong className="text-slate-950 font-bold">{player.salary}</strong></span>
-          <span>•</span>
-          <span>Chân: {player.weakFoot}</span>
-          <span>•</span>
-          <span>Skill: {player.skill}★</span>
-        </div>
+      </div>
+
+      <div
+        title={`FP ${player.salary}`}
+        className="absolute z-30 left-1/2 bottom-[2%] -translate-x-1/2 inline-flex w-10 h-10 items-center justify-center rounded-full border-4 border-slate-300 bg-slate-100/95 text-base font-black font-digital text-[#4b3518] shadow-lg"
+      >
+        {player.salary}
       </div>
     </div>
   );

@@ -30,7 +30,7 @@ export default function RulesModal({ isOpen, onClose }) {
                 <Users className="w-5 h-5" /> 1. SỐ LƯỢNG ĐỘI & THỨ TỰ SNAKE
               </div>
               <ul className="list-disc list-inside space-y-1 text-slate-300">
-                <li>Tổng cộng <strong>4 đội thi đấu</strong> (AMT, NK, FFB, TAG).</li>
+                <li>Mỗi room có đúng bốn đội cố định: <strong>AMT, NK, FFB và TAG</strong>. Người chơi được phân ngẫu nhiên và có thể swap đội tại Lobby.</li>
                 <li><strong>Thứ tự Snake Draft</strong>:
                   <div className="mt-1 text-xs bg-slate-900/80 p-2 rounded border border-slate-700 font-mono text-neon-cyan">
                     Vòng lẻ (1, 3, 5, 7, 9, 11, 13): 1 ➔ 2 ➔ 3 ➔ 4<br />
@@ -38,6 +38,7 @@ export default function RulesModal({ isOpen, onClose }) {
                   </div>
                 </li>
                 <li>Mỗi đội pick tổng cộng <strong>23 cầu thủ</strong> (11 chính + 12 dự bị).</li>
+                <li>Mất kết nối không làm Draft tạm dừng. Đồng hồ vẫn chạy và đội không kịp reconnect sẽ <strong>mất số pick còn lại của lượt đó</strong>.</li>
                 <li><strong>Pick Độc Quyền</strong>: 1 cầu thủ chỉ được chọn bởi 1 đội trên toàn bộ các mùa thẻ.</li>
               </ul>
             </div>
@@ -167,6 +168,19 @@ export default function RulesModal({ isOpen, onClose }) {
                   <li>Loạt trận <strong>BO7</strong>: Mỗi cầu thủ chỉ được cấm tối đa <strong>3 lần</strong>.</li>
                 </ul>
               </li>
+            </ul>
+          </div>
+
+          {/* Section 5: Post-ban lineup */}
+          <div className="p-4 bg-[#141d2d] rounded-xl border border-emerald-800/80">
+            <div className="flex items-center gap-2 text-neon-green font-bold text-base mb-2">
+              <ShieldCheck className="w-5 h-5" /> 5. XẾP ĐỘI HÌNH SAU KHI CẤM
+            </div>
+            <ul className="list-disc list-inside space-y-1.5 text-slate-300">
+              <li>Mỗi đội chọn sơ đồ và xếp đúng <strong>11 cầu thủ</strong> từ danh sách 23 cầu thủ đã Draft.</li>
+              <li>Các cầu thủ bị đối phương cấm trong game hiện tại <strong className="text-red-400">không được sử dụng</strong>.</li>
+              <li>Đội hình phải có <strong>Thủ môn tại vị trí GK</strong> và tổng lương không vượt quá <strong className="text-amber-400">305</strong>.</li>
+              <li>Một cầu thủ chỉ được xuất hiện ở một vị trí. Hai đội phải khóa đội hình trước khi Trọng tài chuyển sang game tiếp theo.</li>
             </ul>
           </div>
         </div>

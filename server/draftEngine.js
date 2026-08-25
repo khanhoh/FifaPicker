@@ -35,17 +35,31 @@ function getInitialRoundPicks() {
   };
 }
 
-// 4 Đội theo thứ tự 1-4 chính xác:
-// 1: AMITA FCO (AMT)
-// 2: NK FC ONLINE (NK)
-// 3: FOR FUN BROTHER (FFB)
-// 4: TAG TEAM (TAG)
-const INITIAL_TEAMS = [
-  { id: 1, code: 'AMT', name: 'AMITA FCO',        logoUrl: '/logos/AMT.png', color: '#ffffff', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 },
-  { id: 2, code: 'NK',  name: 'NK FC ONLINE',     logoUrl: '/logos/NK.png',  color: '#ef4444', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 },
-  { id: 3, code: 'FFB', name: 'FOR FUN BROTHER',  logoUrl: '/logos/FFB.png', color: '#ea580c', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 },
-  { id: 4, code: 'TAG', name: 'TAG TEAM',        logoUrl: '/logos/TAG.png', color: '#f97316', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 }
-];
+function createEmptyTeam(slotId) {
+  return {
+    id: slotId,
+    code: `T${slotId}`,
+    name: `Đang chờ đội ${slotId}`,
+    captainName: '',
+    logoUrl: null,
+    color: '#64748b',
+    occupied: false,
+    connected: false
+  };
+}
+
+const INITIAL_TEAMS = [1, 2, 3, 4].map(createEmptyTeam);
+
+function createDraftTeam(team) {
+  return {
+    ...team,
+    startingXI: [],
+    subs: [],
+    roundPicks: getInitialRoundPicks(),
+    totalSalaryMain: 0,
+    gkCount: 0
+  };
+}
 
 function normalizePlayerIdentity(name) {
   return String(name || '')
@@ -56,9 +70,36 @@ function normalizePlayerIdentity(name) {
 }
 
 class DraftRoom {
-  constructor(roomId = 'main_room') {
+  constructor(roomId, teams = INITIAL_TEAMS) {
     this.roomId = roomId;
+    this.teamSeeds = teams.map((team, index) => ({
+      ...createEmptyTeam(index + 1),
+      ...team,
+      id: index + 1
+    }));
     this.reset();
+  }
+
+  setTeams(teams) {
+    if (this.status !== 'waiting') {
+      return { valid: false, error: 'Không thể thay đổi đội sau khi Draft đã bắt đầu.' };
+    }
+
+    this.teamSeeds = [0, 1, 2, 3].map((index) => ({
+      ...createEmptyTeam(index + 1),
+      ...(teams[index] || {}),
+      id: index + 1
+    }));
+    this.teams = this.teamSeeds.map(createDraftTeam);
+    return { valid: true };
+  }
+
+  setTeamConnection(teamId, connected) {
+    const normalizedTeamId = parseInt(teamId, 10);
+    const seed = this.teamSeeds.find((team) => team.id === normalizedTeamId);
+    const team = this.teams.find((item) => item.id === normalizedTeamId);
+    if (seed) seed.connected = Boolean(connected);
+    if (team) team.connected = Boolean(connected);
   }
 
   reset() {
@@ -71,14 +112,7 @@ class DraftRoom {
     this.pickedPlayerIds = new Set();
     this.pickedPlayerIdentities = new Map();
     this.history = [];
-    this.teams = INITIAL_TEAMS.map(t => ({
-      ...t,
-      startingXI: [],
-      subs: [],
-      roundPicks: getInitialRoundPicks(),
-      totalSalaryMain: 0,
-      gkCount: 0
-    }));
+    this.teams = this.teamSeeds.map(createDraftTeam);
   }
 
   getTurnOrder() {
@@ -176,6 +210,10 @@ class DraftRoom {
   validatePick(player, teamId) {
     if (this.status !== 'drafting') {
       return { valid: false, error: 'Phiên Draft đang tạm dừng hoặc chưa bắt đầu!' };
+    }
+
+    if (!player || player.id === undefined || !String(player.name || '').trim()) {
+      return { valid: false, error: 'Dữ liệu cầu thủ không hợp lệ!' };
     }
 
     const currentTeam = this.getCurrentTeam();
@@ -328,7 +366,8 @@ class DraftRoom {
     console.log('🎉 Phiên Draft đã hoàn tất!');
     this.broadcastState(io);
     io.to(this.roomId).emit('draft_completed', {
-      message: 'Phiên Draft đã kết thúc thành công!'
+      message: 'Draft đã hoàn tất toàn bộ vòng. Đội bỏ lỡ lượt có thể kết thúc với danh sách chưa đủ 23 cầu thủ.',
+      teams: this.teams
     });
   }
 
@@ -362,5 +401,6 @@ module.exports = {
   DraftRoom,
   ROUNDS_CONFIG,
   INITIAL_TEAMS,
+  createEmptyTeam,
   normalizePlayerIdentity
 };

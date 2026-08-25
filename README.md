@@ -22,25 +22,28 @@ Hệ thống Webapp chọn cầu thủ (Draft Picker) theo thời gian thực ch
 4. **Cơ Chế Pick Độc Quyền Cầu Thủ (Exclusive Pick)**:
    - Khi một đội đã chọn một cầu thủ (ví dụ: `L. Messi` mùa `26TS`), tất cả các mùa thẻ khác của cầu thủ này sẽ tự động bị khóa trên toàn hệ thống.
    - Nhận diện và phân biệt chính xác các cầu thủ trùng/na ná tên (`Ronaldo` béo vs `Cristiano Ronaldo` CR7; `Gabriel Batistuta` vs `Gabriel Jesus`...).
-5. **Hệ Thống Phân Quyền & Đăng Nhập Tài Khoản**:
+5. **Room riêng & phân quyền bằng session token**:
+   - Trọng tài tạo room và chia sẻ mã 6 ký tự. Bốn lựa chọn đội được cố định là **AMT, NK, FFB và TAG**, gồm đúng metadata, màu và logo giải đấu.
+   - Khi join, người chơi được server phân ngẫu nhiên vào một đội còn trống; có thể swap trực tiếp trong Lobby. Trọng tài có quyền randomize toàn bộ vị trí.
    - **Chỉ Trọng tài** mới có quyền: Bắt đầu Draft, Tạm dừng (Pause), Tiếp tục (Resume), Chuyển lượt thủ công, Đặt lại (Reset).
    - Đội trưởng các đội chỉ có thể bấm nút **PICK** khi đến đúng lượt của đội mình.
+   - Mất kết nối không làm Draft dừng. Slot vẫn được giữ, đồng hồ tiếp tục chạy và đội không reconnect kịp sẽ mất lượt.
 6. **2 Giao Diện Chuẩn Esports**:
    - **Bảng Tổng Quan (Broadcast Board)**: Bảng 4 cột 13 vòng hiển thị toàn diện đội hình 4 đội kèm banner vàng chữ đen.
    - **Màn Hình Chọn Cầu Thủ (Player Picker)**: Tìm kiếm cầu thủ theo tên, lọc mùa thẻ bằng text/icon tròn, lọc vị trí/OVR/lương, xem trước thẻ FIFA Card lớn và nút PICK to bản.
 
 ---
 
-## 👥 Danh Sách Tài Khoản Mặc Định
+## 👥 Luồng tham gia Room
 
-| Vai trò / Đội | Mã đội | Mật khẩu / Mã PIN | Quyền hạn |
-| :--- | :---: | :---: | :--- |
-| 🏆 **Trọng Tài / Admin** | `referee` | `123456` | Toàn quyền điều khiển phiên Draft |
-| 🦁 **AMITA FCO** | `AMT` | `1111` | Captain Đội 1 (Pick khi tới lượt) |
-| 🛡️ **NK FC ONLINE** | `NK` | `2222` | Captain Đội 2 (Pick khi tới lượt) |
-| 🔥 **FOR FUN BROTHER** | `FFB` | `3333` | Captain Đội 3 (Pick khi tới lượt) |
-| 🦅 **TAG TEAM** | `TAG` | `4444` | Captain Đội 4 (Pick khi tới lượt) |
-| 📺 **Khán Giả / Streamer** | `spectator` | *(Không cần PIN)* | Xem toàn màn hình Live Broadcast |
+1. Trọng tài chọn **Tạo Room**, nhập tên và copy mã 6 ký tự.
+2. Bốn người chơi chọn **Join Room**, nhập mã và tên Captain; server tự phân ngẫu nhiên vào AMT, NK, FFB hoặc TAG còn trống.
+3. Người chơi có thể swap sang vị trí khác; nếu vị trí đã có người thì hai Captain được hoán đổi ngay. Trọng tài có thể randomize toàn bộ vị trí hoặc xóa người chơi khỏi Lobby.
+4. Nút **Bắt đầu Draft** chỉ mở khi đủ 4 đội đang online.
+5. Khán giả chọn chế độ **Khán giả**, nhập mã để xem mà không chiếm team slot.
+6. Trọng tài có thể chọn **Hủy Room** để thu hồi toàn bộ session và ngắt kết nối tất cả thành viên.
+
+Quyền hạn được gắn với token riêng do server cấp và được lưu trên trình duyệt để reconnect đúng slot. Mã room chỉ dùng để tìm room, không cấp quyền Trọng tài hay quyền của đội.
 
 ---
 
@@ -117,7 +120,7 @@ FifaPicker/
 │   └── fifaService.js         # Service gọi API FIFAaddict & lọc 53 mùa thẻ
 └── client/                    # Ứng dụng Frontend React + TailwindCSS
     ├── public/
-    │   └── logos/             # Logo chính thức 4 đội (AMT.png, NK.png, FFB.png, TAG.png)
+    │   └── logos/             # Asset logo tùy chọn
     └── src/
         ├── App.jsx            # Điều hướng giữa Bảng Tổng Quan và Màn Hình Picker
         ├── context/
@@ -125,9 +128,10 @@ FifaPicker/
         └── components/
             ├── Header.jsx     # Đồng hồ Neon, YOUR TURN, Round badge & Nút Trọng Tài
             ├── BroadcastBoard.jsx     # [Ảnh 1] Bảng tổng quan 4 đội và 13 round đấu
+            ├── RoomGateway.jsx        # Màn tạo/join/xem room
+            ├── RoomLobby.jsx          # Lobby 4 đội, mã chia sẻ và Start gate
             ├── PlayerSearchPicker.jsx # [Ảnh 2] Tìm kiếm cầu thủ, xem thẻ và nút PICK
             ├── PlayerCard.jsx         # Thẻ FIFA Card lớn hiển thị OVR (đã cộng)
-            ├── LoginModal.jsx         # Modal đăng nhập Trọng tài & Đội trưởng
             └── RulesModal.jsx         # Modal hiển thị bảng luật giải đấu chi tiết
 ```
 

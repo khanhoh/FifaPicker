@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useDraft } from '../context/DraftContext';
-import { TeamLogos, FCLogo } from '../assets/teamLogos';
+import { TeamLogo, FCLogo } from '../assets/teamLogos';
+import EnhancementBadge from './EnhancementBadge';
+import SquadBuilder from './SquadBuilder';
 import { Play, RotateCcw, ArrowRight, Lock, Check } from 'lucide-react';
 
 function getPosCategory(pos) {
@@ -65,16 +67,14 @@ function MiniCard({ player, isBanned, onClick, disabled, statusText }) {
             {player.pos}
           </div>
           {player.maxPlus && (
-            <div className="text-[8px] font-bold text-amber-200 bg-amber-800/80 px-0.5 rounded leading-tight">
-              +{player.maxPlus}
-            </div>
+            <EnhancementBadge level={player.maxPlus} size="xs" className="mt-0.5" />
           )}
         </div>
 
-        {player.crestUrl && (
+        {player.seasonLogoUrl && (
           <img
-            src={player.crestUrl}
-            alt={player.season}
+            src={player.seasonLogoUrl}
+            alt={player.seasonName || player.season}
             className="w-3.5 h-3.5 sm:w-4 sm:h-4 object-contain drop-shadow"
           />
         )}
@@ -198,9 +198,6 @@ export default function MatchBanView() {
     });
   };
 
-  const TeamALogo = currentTeamA ? (TeamLogos[currentTeamA.code] || TeamLogos.AMT) : null;
-  const TeamBLogo = currentTeamB ? (TeamLogos[currentTeamB.code] || TeamLogos.NK) : null;
-
   // Check if a player in Team A is banned by Team B
   const isPlayerInABanned = (p) => bansAgainstA.some(b => b.id === p.id);
   // Check if a player in Team B is banned by Team A
@@ -216,7 +213,7 @@ export default function MatchBanView() {
 
           {/* Team A Pill (White/Dark Container) */}
           <div className="flex items-center gap-2 bg-[#0c1424] border border-slate-700 px-3.5 py-1 rounded-full shadow-md">
-            {TeamALogo && <TeamALogo className="w-5 h-5" />}
+            {currentTeamA && <TeamLogo code={currentTeamA.code} name={currentTeamA.name} color={currentTeamA.color} logoUrl={currentTeamA.logoUrl} className="w-5 h-5" />}
             <span className="text-xs font-black tracking-wider text-white uppercase">
               {currentTeamA?.name}
             </span>
@@ -236,7 +233,7 @@ export default function MatchBanView() {
         {/* Right: Team B Badge Pill (Bright Neon Green Pill) */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-neon-green text-slate-950 border border-white px-4 py-1 rounded-full shadow-[0_0_15px_rgba(0,255,102,0.6)]">
-            {TeamBLogo && <TeamBLogo className="w-5 h-5" />}
+            {currentTeamB && <TeamLogo code={currentTeamB.code} name={currentTeamB.name} color={currentTeamB.color} logoUrl={currentTeamB.logoUrl} className="w-5 h-5" />}
             <span className="text-xs font-black tracking-wider uppercase">
               {currentTeamB?.name}
             </span>
@@ -282,7 +279,13 @@ export default function MatchBanView() {
                   {isAllLocked && (
                     <button
                       onClick={nextGameBan}
-                      className="px-2 py-1 bg-neon-green text-slate-950 rounded text-xs font-black flex items-center gap-1"
+                      disabled={!banState?.allLineupsLocked}
+                      title={banState?.allLineupsLocked ? 'Chuyển sang game tiếp theo' : 'Chờ hai đội khóa đội hình'}
+                      className={`px-2 py-1 rounded text-xs font-black flex items-center gap-1 ${
+                        banState?.allLineupsLocked
+                          ? 'bg-neon-green text-slate-950'
+                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      }`}
                     >
                       <span>NEXT GAME</span>
                       <ArrowRight className="w-3 h-3" />
@@ -301,6 +304,12 @@ export default function MatchBanView() {
           )}
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="border-b border-red-800 bg-red-950/90 px-4 py-2 text-center text-xs font-black text-red-300">
+          {errorMsg}
+        </div>
+      )}
 
       {/* Action Notification / Ban Control Pill */}
       {isBanning && !isAllLocked && (isMyTeamA || isMyTeamB) && (
@@ -335,14 +344,17 @@ export default function MatchBanView() {
         </div>
       )}
 
-      {/* 2. Main 2 Squad Containers Layout (Exact Match to Image 3) */}
+      {isAllLocked ? (
+        <SquadBuilder />
+      ) : (
+      /* 2. Main 2 Squad Containers Layout (Exact Match to Image 3) */
       <div className="flex-1 p-3 md:p-6 flex flex-col lg:flex-row items-center justify-center gap-4 md:gap-8 min-h-0">
         {/* LEFT CONTAINER: Team A's 23 Squad Players */}
         <div className="relative bg-[#0b101c]/90 border border-slate-800/90 rounded-3xl p-4 md:p-5 shadow-2xl flex flex-col gap-2.5 max-w-2xl w-full">
           {/* Team A Header */}
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2">
-              {TeamALogo && <TeamALogo className="w-6 h-6" />}
+              {currentTeamA && <TeamLogo code={currentTeamA.code} name={currentTeamA.name} color={currentTeamA.color} logoUrl={currentTeamA.logoUrl} className="w-6 h-6" />}
               <span className="text-sm font-black text-white tracking-wider uppercase">
                 {currentTeamA?.name}
               </span>
@@ -401,7 +413,7 @@ export default function MatchBanView() {
           {/* Team B Header */}
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2">
-              {TeamBLogo && <TeamBLogo className="w-6 h-6" />}
+              {currentTeamB && <TeamLogo code={currentTeamB.code} name={currentTeamB.name} color={currentTeamB.color} logoUrl={currentTeamB.logoUrl} className="w-6 h-6" />}
               <span className="text-sm font-black text-white tracking-wider uppercase">
                 {currentTeamB?.name}
               </span>
@@ -439,6 +451,7 @@ export default function MatchBanView() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

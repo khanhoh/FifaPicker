@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDraft } from '../context/DraftContext';
-import { TeamLogos } from '../assets/teamLogos';
+import { TeamLogo } from '../assets/teamLogos';
 
 const POS_COLORS = {
   ST: 'border-l-4 border-l-[#ef4444] text-[#f87171]',
@@ -61,10 +61,10 @@ export default function BroadcastBoard() {
             <span className="font-black text-xs tracking-wider">
               {player.pos}
             </span>
-            {player.crestUrl && (
+            {player.seasonLogoUrl && (
               <img
-                src={player.crestUrl}
-                alt={player.season}
+                src={player.seasonLogoUrl}
+                alt={player.seasonName || player.season}
                 className="w-4 h-4 object-contain"
               />
             )}
@@ -108,7 +108,6 @@ export default function BroadcastBoard() {
 
           {teams.map((t, idx) => {
             const isTurn = currentTeam && currentTeam.id === t.id && draftState?.status === 'drafting';
-            const TeamLogo = TeamLogos[t.code] || TeamLogos.AMT;
 
             return (
               <div
@@ -119,15 +118,19 @@ export default function BroadcastBoard() {
                     : 'border-neon-green/60 bg-[#0f1728]'
                 }`}
               >
-                {/* Number in circle (1) + Team code + Logo */}
-                <div className="flex items-center gap-2">
+                {/* Number, optically balanced logo and team code */}
+                <div className="flex min-w-0 items-center gap-1.5">
                   <div className="w-6 h-6 rounded-full border border-neon-green flex items-center justify-center text-[11px] font-black text-neon-green">
                     {idx + 1}
                   </div>
+                  <TeamLogo code={t.code} name={t.name} color={t.color} logoUrl={t.logoUrl} className="w-9 h-7" />
                   <div className="text-sm font-black tracking-wider text-white">
                     {t.code}
                   </div>
-                  <TeamLogo className="w-6 h-6 drop-shadow" />
+                  <span
+                    title={t.connected ? 'Đang online' : 'Mất kết nối'}
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.connected ? 'bg-neon-green' : 'bg-red-500'}`}
+                  />
                 </div>
 
                 {/* Salary Badge X/305 */}
@@ -261,35 +264,44 @@ export default function BroadcastBoard() {
         {teams.map((t) => {
           const isTurn = currentTeam && currentTeam.id === t.id && draftState?.status === 'drafting';
           const totalPlayers = t.startingXI.length + t.subs.length;
-          const TeamLogo = TeamLogos[t.code] || TeamLogos.AMT;
 
           return (
             <div
               key={t.id}
-              className={`relative bg-[#0c1424] border rounded-2xl overflow-hidden flex flex-col justify-between transition duration-300 shadow-2xl ${
+              className={`relative bg-[#0c1424] border rounded-2xl overflow-hidden flex flex-col transition duration-300 shadow-2xl ${
                 isTurn
                   ? 'border-neon-green glow-neon-green shadow-emerald-950 scale-102'
                   : 'border-slate-800 hover:border-slate-700'
               }`}
             >
+              <div
+                className={`h-1 w-full ${
+                  isTurn
+                    ? 'bg-neon-green'
+                    : 'bg-gradient-to-r from-rose-600 via-red-500 to-orange-400'
+                }`}
+              />
+
               {/* Upper Card: Logo & Stats */}
-              <div className="p-3.5 space-y-2.5">
+              <div className="p-3.5 pt-3 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center p-1 shadow-lg">
-                      <TeamLogo className="w-10 h-10" />
-                    </div>
-                    <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <TeamLogo code={t.code} name={t.name} color={t.color} logoUrl={t.logoUrl} className="w-14 h-14 rounded-xl" />
+                    <div className="min-w-0">
                       <div className="text-base font-black text-white tracking-wider">
                         {t.code}
                       </div>
-                      <div className="text-[11px] text-slate-400 font-semibold">
-                        Quỹ lương: <strong className={t.totalSalaryMain > 305 ? 'text-red-400' : 'text-neon-green'}>{t.totalSalaryMain}/305</strong>
+                      <div className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400" title={t.name}>
+                        {t.name}
                       </div>
                     </div>
                   </div>
 
-                  {isTurn ? (
+                  {!t.connected ? (
+                    <span className="px-2 py-0.5 rounded-md bg-red-950 text-red-400 border border-red-900 text-[9px] font-black">
+                      OFFLINE
+                    </span>
+                  ) : isTurn ? (
                     <span className="px-2.5 py-1 rounded-full bg-neon-green text-slate-950 text-[10px] font-black animate-pulse shadow">
                       ĐANG PICK
                     </span>
@@ -300,28 +312,25 @@ export default function BroadcastBoard() {
                   )}
                 </div>
 
-                {/* Main Progress Bar (Max 305) */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                {/* Progress bar */}
+                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      t.totalSalaryMain > 305 ? 'bg-red-500' : 'bg-neon-green'
+                      t.totalSalaryMain > 305 ? 'bg-red-500' : 'bg-gradient-to-r from-teal-500 to-neon-green'
                     }`}
                     style={{ width: `${Math.min(100, (t.totalSalaryMain / 305) * 100)}%` }}
                   />
                 </div>
 
-                {/* Sub Stats: Main / Subs / GK */}
-                <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
-                  <span>Chính: <strong className="text-white">{t.startingXI.length}/11</strong></span>
-                  <span>Dự bị: <strong className="text-white">{t.subs.length}/12</strong></span>
-                  <span>GK: <strong className={t.gkCount >= 2 ? 'text-neon-green' : 'text-amber-400'}>{t.gkCount}/2</strong></span>
+                <div className="flex justify-between items-center text-[11px] text-slate-300">
+                  <span>Cầu thủ: <strong className="text-white font-bold">{totalPlayers}/23</strong></span>
+                  <span>GK: <strong className={t.gkCount >= 2 ? 'text-neon-green font-bold' : t.gkCount === 1 ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>{t.gkCount}/2</strong></span>
                 </div>
               </div>
 
-              {/* Bottom Yellow Banner: Team Code + Total Players / 23 (Exact match to Image 1) */}
-              <div className="bg-[#fbbf24] text-slate-950 font-black text-xs py-1.5 px-3 flex items-center justify-between tracking-wider shadow-inner">
-                <span className="uppercase">{t.code}</span>
-                <span>{totalPlayers} / 23 CẦU THỦ</span>
+              {/* Bottom Yellow Banner */}
+              <div className="bg-[#fbbf24] text-slate-950 py-1.5 px-3 text-center text-xs font-black tracking-widest uppercase shadow-md">
+                {t.name}
               </div>
             </div>
           );

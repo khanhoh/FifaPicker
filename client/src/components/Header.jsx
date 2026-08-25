@@ -1,12 +1,14 @@
 import React from 'react';
 import { useDraft } from '../context/DraftContext';
-import { FCLogo, TeamLogos } from '../assets/teamLogos';
-import { Play, Pause, RotateCcw, SkipForward, Tv, UserCheck, LogIn, Lock, Ban } from 'lucide-react';
+import { FCLogo, TeamLogo } from '../assets/teamLogos';
+import { Play, Pause, RotateCcw, SkipForward, Tv, UserCheck, Lock, Ban, Wifi, WifiOff } from 'lucide-react';
 
-export default function Header({ onOpenRules, onOpenLogin, currentView, setCurrentView }) {
+export default function Header({ onOpenRules, currentView, setCurrentView }) {
   const {
     draftState,
     currentUser,
+    lobbyState,
+    connectionStatus,
     startDraft,
     pauseDraft,
     resumeDraft,
@@ -27,8 +29,6 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
-
-  const TeamLogoComp = currentTeam ? (TeamLogos[currentTeam.code] || TeamLogos.AMT) : null;
 
   return (
     <header className="bg-[#060a12] border-b border-slate-800/90 px-4 py-2 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-40 shadow-2xl">
@@ -113,7 +113,7 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
               <span>⚡ YOUR TURN!</span>
             ) : (
               <span className="flex items-center gap-1.5">
-                {TeamLogoComp && <TeamLogoComp className="w-4 h-4" />}
+                {currentTeam && <TeamLogo code={currentTeam.code} name={currentTeam.name} color={currentTeam.color} logoUrl={currentTeam.logoUrl} className="w-4 h-4" />}
                 <span>{currentTeam?.name}</span>
               </span>
             )}
@@ -139,11 +139,12 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
 
       {/* Right: User Login & Referee Controls */}
       <div className="flex items-center gap-2">
-        {/* User Role Badge / Login Button */}
-        <button
-          onClick={onOpenLogin}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0e1626] hover:bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 transition shadow"
-        >
+        <div className="hidden items-center gap-1.5 rounded-xl border border-slate-700 bg-[#0e1626] px-3 py-1.5 text-xs font-bold text-slate-200 shadow sm:flex">
+          {connectionStatus === 'connected' ? <Wifi className="h-3.5 w-3.5 text-neon-green" /> : <WifiOff className="h-3.5 w-3.5 text-amber-400" />}
+          <span className="font-digital tracking-wider text-neon-green">{lobbyState?.code}</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-[#0e1626] px-3 py-1.5 text-xs font-bold text-slate-200 shadow">
           {isReferee ? (
             <span className="text-amber-400 font-extrabold flex items-center gap-1">
               🏆 TRỌNG TÀI
@@ -153,11 +154,9 @@ export default function Header({ onOpenRules, onOpenLogin, currentView, setCurre
               👤 {currentUser.name}
             </span>
           ) : (
-            <span className="text-slate-400 flex items-center gap-1">
-              <LogIn className="w-3.5 h-3.5" /> Đăng Nhập
-            </span>
+            <span className="text-slate-400">📺 KHÁN GIẢ</span>
           )}
-        </button>
+        </div>
 
         {/* Referee Controls */}
         {isReferee ? (
