@@ -160,9 +160,9 @@ export default function PlayerSearchPicker() {
   });
 
   return (
-    <div className="flex-1 flex flex-col xl:flex-row gap-4 p-3 md:p-4 bg-[#060a12] text-white overflow-hidden h-[calc(100vh-60px)]">
-      {/* 1. Left Filter & Search Panel (Full Height Scrollable) */}
-      <div className="w-full xl:w-80 bg-[#0a101d] border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 shadow-2xl shrink-0 overflow-y-auto">
+    <div className="flex-1 flex flex-col xl:flex-row gap-4 p-3 md:p-5 bg-[#060a12] text-white overflow-y-auto min-h-0">
+      {/* 1. Left Filter & Search Panel */}
+      <div className="w-full xl:w-80 bg-[#0a101d] border border-slate-800 rounded-2xl p-4 flex flex-col gap-3.5 shadow-2xl shrink-0">
         {/* Name Search Box */}
         <div className="relative">
           <input
@@ -347,47 +347,52 @@ export default function PlayerSearchPicker() {
         </div>
       </div>
 
-      {/* 2. Main Middle Area: SEARCHED PLAYER LIST takes full remaining space, INFO docked at bottom */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
+      {/* 2. Main Middle Area: Limited Height & Smooth Scrollable Search List */}
+      <div className="flex-1 flex flex-col gap-4 min-w-0">
         {/* Messages / Alerts */}
         {errorMsg && (
-          <div className="p-2.5 bg-red-950/90 border border-red-500 text-red-300 rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce shadow-lg shrink-0">
+          <div className="p-3 bg-red-950/90 border border-red-500 text-red-300 rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce shadow-lg">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
         {successMsg && (
-          <div className="p-2.5 bg-emerald-950/90 border border-emerald-500 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shrink-0">
+          <div className="p-3 bg-emerald-950/90 border border-emerald-500 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg">
             <CheckCircle2 className="w-4 h-4 text-neon-green shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
 
-        {/* TOP: SEARCHED PLAYER LIST Table (Fills all flexible space!) */}
-        <div className="bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-800 mb-2 shrink-0">
+        {/* TOP: SEARCHED PLAYER LIST Table (Strictly bounded height with smooth scroll down) */}
+        <div className="bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col">
+          <div className="flex justify-between items-center pb-2.5 border-b border-slate-800 mb-2">
             <span className="text-xs font-black text-slate-300 tracking-wider">
               SEARCHED PLAYER LIST ({players.length} players)
             </span>
-            {loading && (
-              <span className="text-xs font-bold text-neon-green animate-pulse">
-                Đang tải dữ liệu...
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-slate-500 hidden sm:inline">
+                Cuộn xuống để xem thêm cầu thủ ⬇️
               </span>
-            )}
+              {loading && (
+                <span className="text-xs font-bold text-neon-green animate-pulse">
+                  Đang tải dữ liệu...
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Full-height scrollable table body */}
-          <div className="flex-1 overflow-y-auto pr-1 min-h-0">
+          {/* Explicitly bounded height container with smooth vertical scrolling */}
+          <div className="h-64 sm:h-72 md:h-80 overflow-y-auto overflow-x-hidden pr-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 bg-[#0a101d] z-10 shadow-sm">
-                <tr className="text-slate-500 border-b border-slate-800 text-[11px]">
-                  <th className="py-2 px-3 font-bold">PLAYER</th>
-                  <th className="py-2 px-3 font-bold">POS</th>
-                  <th className="py-2 px-3 font-bold">OVR</th>
-                  <th className="py-2 px-3 font-bold">SAL</th>
+              <thead className="sticky top-0 bg-[#0a101d] z-20 shadow-md">
+                <tr className="text-slate-400 border-b border-slate-700 text-[11px] bg-[#0d1422]">
+                  <th className="py-2.5 px-3 font-bold">PLAYER</th>
+                  <th className="py-2.5 px-3 font-bold">POS</th>
+                  <th className="py-2.5 px-3 font-bold">OVR</th>
+                  <th className="py-2.5 px-3 font-bold">SAL</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-800/80">
                 {players.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="text-center py-16 text-slate-500">
@@ -403,20 +408,21 @@ export default function PlayerSearchPicker() {
                       <tr
                         key={p.id}
                         onClick={() => setSelectedPlayer(p)}
-                        className={`cursor-pointer transition h-10 ${
+                        className={`cursor-pointer transition h-11 ${
                           isSelected
                             ? 'bg-neon-green text-slate-950 font-black shadow-md'
                             : pickedInfo
                             ? 'opacity-40 bg-slate-900/60 line-through'
-                            : 'hover:bg-slate-800/60 text-slate-200'
+                            : 'hover:bg-slate-800/70 text-slate-200'
                         }`}
                       >
-                        <td className="py-1.5 px-3 flex items-center gap-2">
+                        {/* Player name & season crest */}
+                        <td className="py-2 px-3 flex items-center gap-2">
                           {p.crestUrl && (
                             <img
                               src={p.crestUrl}
                               alt={p.season}
-                              className="w-4 h-4 object-contain"
+                              className="w-4 h-4 object-contain shrink-0"
                             />
                           )}
                           <span className="truncate font-semibold">{p.name}</span>
@@ -427,15 +433,18 @@ export default function PlayerSearchPicker() {
                           )}
                         </td>
 
-                        <td className={`py-1.5 px-3 font-extrabold ${isSelected ? 'text-slate-950' : 'text-[#3b82f6]'}`}>
+                        {/* Pos */}
+                        <td className={`py-2 px-3 font-extrabold ${isSelected ? 'text-slate-950' : 'text-[#3b82f6]'}`}>
                           | {p.pos}
                         </td>
 
-                        <td className="py-1.5 px-3 font-digital font-bold text-sm">
+                        {/* Calculated OVR */}
+                        <td className="py-2 px-3 font-digital font-bold text-sm">
                           {p.ovr}
                         </td>
 
-                        <td className="py-1.5 px-3 font-bold">
+                        {/* Salary */}
+                        <td className="py-2 px-3 font-bold">
                           {p.salary}
                         </td>
                       </tr>
@@ -447,15 +456,15 @@ export default function PlayerSearchPicker() {
           </div>
         </div>
 
-        {/* BOTTOM: SEARCHED PLAYER INFO (Docked at bottom, compact & clean) */}
-        <div className="bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-5 shrink-0">
-          <div className="flex-1 flex flex-col sm:flex-row items-center gap-5 w-full">
+        {/* BOTTOM: SEARCHED PLAYER INFO (Docked at bottom, clean & visible) */}
+        <div className="bg-[#0a101d] border border-slate-800 rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex-1 flex flex-col sm:flex-row items-center gap-6 w-full">
             {/* Big FIFA Card */}
-            <div className="shrink-0 scale-95 origin-left">
+            <div className="shrink-0">
               {selectedPlayer ? (
                 <PlayerCard player={selectedPlayer} />
               ) : (
-                <div className="w-48 h-64 rounded-2xl border-2 border-dashed border-slate-700 bg-slate-900/40 flex items-center justify-center text-xs text-slate-500">
+                <div className="w-56 h-80 rounded-2xl border-2 border-dashed border-slate-700 bg-slate-900/40 flex items-center justify-center text-xs text-slate-500">
                   Chọn cầu thủ để xem thẻ
                 </div>
               )}
@@ -463,13 +472,13 @@ export default function PlayerSearchPicker() {
 
             {/* Right Details Box */}
             {selectedPlayer && (
-              <div className="flex-1 space-y-3 w-full">
+              <div className="flex-1 space-y-4 w-full">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xl font-black tracking-tight text-white">
+                    <div className="text-2xl font-black tracking-tight text-white">
                       {selectedPlayer.name}
                     </div>
-                    <div className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-2">
+                    <div className="text-xs text-slate-400 font-medium mt-1 flex items-center gap-2">
                       <span>Mùa: <strong className="text-neon-cyan">{selectedPlayer.seasonName}</strong> ({selectedPlayer.season.toUpperCase()})</span>
                       {selectedPlayer.crestUrl && (
                         <img src={selectedPlayer.crestUrl} alt="crest" className="h-4 object-contain inline" />
@@ -478,29 +487,29 @@ export default function PlayerSearchPicker() {
                   </div>
 
                   {selectedPlayer.maxPlus && (
-                    <div className="px-2.5 py-0.5 rounded-lg bg-amber-700/90 text-amber-100 font-black text-xs border border-amber-500 shadow-md">
+                    <div className="px-3 py-1 rounded-lg bg-amber-700/90 text-amber-100 font-black text-xs border border-amber-500 shadow-md">
                       CỘNG TỐI ĐA: +{selectedPlayer.maxPlus}
                     </div>
                   )}
                 </div>
 
                 {/* 3 Green bordered attribute boxes */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="bg-[#0d1422] p-2.5 rounded-xl border border-neon-green/60 text-center shadow-sm">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-[#0d1422] p-3.5 rounded-xl border border-neon-green/60 text-center shadow-sm">
                     <div className="text-[10px] text-slate-400 font-bold uppercase">POSITION</div>
-                    <div className="text-base font-black text-neon-green">{selectedPlayer.pos}</div>
+                    <div className="text-xl font-black text-neon-green mt-0.5">{selectedPlayer.pos}</div>
                   </div>
 
-                  <div className="bg-[#0d1422] p-2.5 rounded-xl border border-neon-green/60 text-center shadow-sm">
+                  <div className="bg-[#0d1422] p-3.5 rounded-xl border border-neon-green/60 text-center shadow-sm">
                     <div className="text-[10px] text-slate-400 font-bold uppercase">OVR (ĐÃ +BONUS)</div>
-                    <div className="text-base font-black font-digital text-amber-400">
-                      {selectedPlayer.ovr} <span className="text-[10px] font-normal text-slate-400">(+{selectedPlayer.bonusOvr})</span>
+                    <div className="text-xl font-black font-digital text-amber-400 mt-0.5">
+                      {selectedPlayer.ovr} <span className="text-[11px] font-normal text-slate-400">(+{selectedPlayer.bonusOvr})</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0d1422] p-2.5 rounded-xl border border-neon-green/60 text-center shadow-sm">
+                  <div className="bg-[#0d1422] p-3.5 rounded-xl border border-neon-green/60 text-center shadow-sm">
                     <div className="text-[10px] text-slate-400 font-bold uppercase">SALARY</div>
-                    <div className="text-base font-black text-white">{selectedPlayer.salary}</div>
+                    <div className="text-xl font-black text-white mt-0.5">{selectedPlayer.salary}</div>
                   </div>
                 </div>
 
@@ -508,7 +517,7 @@ export default function PlayerSearchPicker() {
                 <button
                   onClick={handlePickClick}
                   disabled={!isMyTurn || selectedPlayerPickedInfo !== null}
-                  className={`w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition shadow-2xl flex items-center justify-center gap-2 ${
+                  className={`w-full py-4 rounded-xl font-black text-base uppercase tracking-wider transition shadow-2xl flex items-center justify-center gap-2 ${
                     !isCaptain
                       ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                       : !isMyTurn
@@ -534,17 +543,17 @@ export default function PlayerSearchPicker() {
         </div>
       </div>
 
-      {/* 3. Right Panel: Compact Picked Player List (Scrollable) */}
-      <div className="w-full xl:w-72 bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col shrink-0 overflow-y-auto">
+      {/* 3. Right Panel: Compact Picked Player List */}
+      <div className="w-full xl:w-72 bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col shrink-0">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3 shrink-0">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
           <div className="text-xs font-black tracking-wide text-white">
             PICKED PLAYER LIST ({myTeam?.startingXI?.length + myTeam?.subs?.length || 0} players)
           </div>
         </div>
 
         {/* Team Salary & GK Stats */}
-        <div className="p-3 bg-[#101828] rounded-xl border border-slate-800 mb-3 space-y-2 shrink-0">
+        <div className="p-3 bg-[#101828] rounded-xl border border-slate-800 mb-3 space-y-2">
           <div className="flex justify-between items-center text-xs">
             <span className="text-slate-400">Đội:</span>
             <div className="flex items-center gap-1.5">
@@ -577,7 +586,7 @@ export default function PlayerSearchPicker() {
         </div>
 
         {/* Roster of Picked Players */}
-        <div className="flex-1 space-y-1.5 pr-1">
+        <div className="flex-1 overflow-y-auto max-h-[500px] space-y-1.5 pr-1">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
             Đội hình chính ({myTeam?.startingXI?.length || 0}/11)
           </div>
