@@ -14,7 +14,6 @@ export default function RoomLobby() {
     destroyRoom,
     removePlayer,
     leaveRoom,
-    backendInfo,
     errorMsg
   } = useDraft();
   const [copied, setCopied] = useState(false);
@@ -72,7 +71,6 @@ export default function RoomLobby() {
               {connectionStatus === 'connected' ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
               {connectionStatus === 'connected' ? 'Đã kết nối' : 'Đang kết nối lại'}
             </div>
-            {backendInfo && <div className="font-mono text-[9px] text-slate-600">BE {backendInfo.mode} · PID {backendInfo.processId}</div>}
           </div>
         </header>
 
