@@ -1,11 +1,59 @@
 import React from 'react';
 import EnhancementBadge from './EnhancementBadge';
 
-export default function PlayerCard({ player }) {
+const LINEUP_TEXT_STYLE = {
+  color: '#f8fafc',
+  WebkitTextStroke: '1.4px rgba(2, 6, 23, 0.95)',
+  paintOrder: 'stroke fill',
+  textShadow: '0 2px 2px rgba(0, 0, 0, 0.95), 0 0 5px rgba(0, 0, 0, 0.85)'
+};
+
+const SIZE_STYLES = {
+  default: {
+    root: 'h-80 w-[272px]',
+    ovr: 'text-3xl',
+    pos: 'text-sm',
+    badge: 'card',
+    seasonLogo: 'h-7 w-7',
+    name: 'text-sm',
+    fp: 'h-10 w-10 border-4 text-base'
+  },
+  preview: {
+    root: 'h-56 w-[190px]',
+    ovr: 'text-2xl',
+    pos: 'text-xs',
+    badge: 'sm',
+    seasonLogo: 'h-5 w-5',
+    name: 'text-xs',
+    fp: 'h-8 w-8 border-[3px] text-xs'
+  },
+  compact: {
+    root: 'h-[122px] w-[104px]',
+    ovr: 'text-sm',
+    pos: 'text-[7px]',
+    badge: 'xs',
+    seasonLogo: 'h-3.5 w-3.5',
+    name: 'text-[6px]',
+    fp: 'h-5 w-5 border-2 text-[7px]'
+  }
+};
+
+export default function PlayerCard({ player, variant = 'default', size = 'default', className = '' }) {
   if (!player) return null;
+  const sizeStyle = SIZE_STYLES[size] || SIZE_STYLES.default;
+  const useLineupContrast = variant === 'lineup' || variant === 'ban';
+  const readableTextStyle = useLineupContrast
+    ? {
+        ...LINEUP_TEXT_STYLE,
+        WebkitTextStroke: size === 'compact' ? '0.65px rgba(2, 6, 23, 0.95)' : LINEUP_TEXT_STYLE.WebkitTextStroke,
+        textShadow: size === 'compact'
+          ? '0 1px 1px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.8)'
+          : LINEUP_TEXT_STYLE.textShadow
+      }
+    : undefined;
 
   return (
-    <div className="relative w-[272px] h-80 bg-transparent text-[#4b3518] drop-shadow-2xl overflow-hidden">
+    <div className={`${sizeStyle.root} ${className} relative overflow-hidden bg-transparent text-[#4b3518] drop-shadow-2xl`}>
       {player.cardBackgroundUrl && (
         <img
           src={player.cardBackgroundUrl}
@@ -16,18 +64,18 @@ export default function PlayerCard({ player }) {
       )}
 
       {/* Original FC hierarchy: OVR and position form one block at top-left. */}
-      <div className="absolute z-20 left-[22%] top-[18%] [text-shadow:0_1px_1px_rgba(255,255,255,0.45)]">
-        <div className="text-3xl font-black tracking-tighter leading-none font-digital text-[#4b3518]">
+      <div className={`absolute z-20 left-[22%] top-[18%] ${useLineupContrast ? '' : '[text-shadow:0_1px_1px_rgba(255,255,255,0.45)]'}`}>
+        <div style={readableTextStyle} className={`${sizeStyle.ovr} font-black tracking-tighter leading-none font-digital ${useLineupContrast ? '' : 'text-[#4b3518]'}`}>
           {player.ovr}
         </div>
-        <div className="text-sm font-extrabold tracking-wider leading-tight text-[#4b3518]">
+        <div style={readableTextStyle} className={`${sizeStyle.pos} font-extrabold tracking-wider leading-tight ${useLineupContrast ? '' : 'text-[#4b3518]'}`}>
           {player.pos}
         </div>
       </div>
 
       {player.maxPlus && (
         <div className="absolute right-[21%] top-[65%] z-30">
-          <EnhancementBadge level={player.maxPlus} size="card" />
+          <EnhancementBadge level={player.maxPlus} size={sizeStyle.badge} />
         </div>
       )}
 
@@ -48,11 +96,14 @@ export default function PlayerCard({ player }) {
               src={player.seasonLogoUrl}
               alt={player.seasonName}
               title={player.seasonName}
-              className="w-7 h-7 object-contain shrink-0 drop-shadow"
+              className={`${sizeStyle.seasonLogo} object-contain shrink-0 drop-shadow`}
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           )}
-          <div className="text-sm font-black tracking-tight truncate uppercase text-[#4b3518] [text-shadow:0_1px_1px_rgba(255,255,255,0.5)]">
+          <div
+            style={readableTextStyle}
+            className={`${sizeStyle.name} font-black tracking-tight truncate uppercase ${useLineupContrast ? '' : 'text-[#4b3518] [text-shadow:0_1px_1px_rgba(255,255,255,0.5)]'}`}
+          >
             {player.name}
           </div>
         </div>
@@ -60,7 +111,7 @@ export default function PlayerCard({ player }) {
 
       <div
         title={`FP ${player.salary}`}
-        className="absolute z-30 left-1/2 bottom-[2%] -translate-x-1/2 inline-flex w-10 h-10 items-center justify-center rounded-full border-4 border-slate-300 bg-slate-100/95 text-base font-black font-digital text-[#4b3518] shadow-lg"
+        className={`${sizeStyle.fp} absolute z-30 left-1/2 bottom-[2%] -translate-x-1/2 inline-flex items-center justify-center rounded-full border-slate-300 bg-slate-100/95 font-black font-digital text-[#4b3518] shadow-lg`}
       >
         {player.salary}
       </div>

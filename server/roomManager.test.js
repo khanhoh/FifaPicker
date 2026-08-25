@@ -127,6 +127,41 @@ test('a disconnected player keeps the reserved slot after draft start', () => {
   clearInterval(room.draftRoom.timerInterval);
 });
 
+test('an exited player can resume the same session, team slot and draft data', () => {
+  const manager = new RoomManager();
+  const { sessions, room } = createFullRoom(manager);
+  sessions.forEach((session, index) => manager.connect(session.token, `socket-${index}`));
+  const fakeIo = { to: () => ({ emit: () => {} }) };
+  room.draftRoom.startDraft(fakeIo);
+
+  const session = sessions[1];
+  const team = room.draftRoom.teams.find((item) => item.id === session.teamId);
+  team.startingXI.push({ id: 'saved-player', name: 'Saved Player', pos: 'ST', salary: 20 });
+  manager.disconnect(session.token, 'socket-1');
+
+  const resumed = manager.resumeRoom({ roomCode: room.code, token: session.token });
+  assert.equal(resumed.valid, true);
+  assert.equal(resumed.session.token, session.token);
+  assert.equal(resumed.session.teamId, session.teamId);
+  assert.equal(room.participants.length, 4);
+  assert.equal(team.startingXI[0].id, 'saved-player');
+  assert.equal(room.draftRoom.status, 'drafting');
+  assert.equal(team.connected, false);
+
+  manager.connect(resumed.session.token, 'socket-returned');
+  assert.equal(team.connected, true);
+  clearInterval(room.draftRoom.timerInterval);
+});
+
+test('resume rejects an invalid token or a token from another room', () => {
+  const manager = new RoomManager();
+  const first = createFullRoom(manager);
+  const second = createFullRoom(manager);
+
+  assert.equal(manager.resumeRoom({ roomCode: first.room.code, token: 'invalid-token' }).valid, false);
+  assert.equal(manager.resumeRoom({ roomCode: first.room.code, token: second.sessions[0].token }).valid, false);
+});
+
 test('draft state is isolated between rooms', () => {
   const manager = new RoomManager();
   const first = createFullRoom(manager);

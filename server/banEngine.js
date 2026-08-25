@@ -2,27 +2,29 @@
 
 const LINEUP_SALARY_CAP = 305;
 const DEFAULT_FORMATION = '4231';
+const BAN_LIMIT_PER_TEAM = 5;
+const BAN_TURN_SECONDS = 30;
 
 // Mỗi phần tử là một tuyến từ trên xuống dưới; slot id được tạo ổn định để
 // client và server có thể đồng bộ đội hình qua Socket.io.
 const FORMATIONS = {
-  '343': [['LW', 'ST', 'RW'], ['LM', 'CM', 'CM', 'RM'], ['LCB', 'CB', 'RCB'], ['GK']],
-  '3412': [['ST', 'ST'], ['CAM'], ['LM', 'CM', 'CM', 'RM'], ['LCB', 'CB', 'RCB'], ['GK']],
+  '343': [['LW', 'ST', 'RW'], ['LM', 'LCM', 'RCM', 'RM'], ['LCB', 'CB', 'RCB'], ['GK']],
+  '3412': [['ST', 'ST'], ['CAM'], ['LM', 'LCM', 'RCM', 'RM'], ['LCB', 'CB', 'RCB'], ['GK']],
   '352': [['ST', 'ST'], ['CAM'], ['LM', 'CDM', 'CDM', 'RM'], ['LCB', 'CB', 'RCB'], ['GK']],
   '41212': [['ST', 'ST'], ['CAM'], ['LM', 'RM'], ['CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '4123': [['LW', 'ST', 'RW'], ['CM', 'CM'], ['CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '4141': [['ST'], ['LM', 'CM', 'CM', 'RM'], ['CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '4213': [['LW', 'ST', 'RW'], ['CDM', 'CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '4231': [['ST'], ['LAM', 'CAM', 'RAM'], ['LDM', 'RDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '4222': [['ST', 'ST'], ['LAM', 'RAM'], ['LDM', 'RDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '424': [['LW', 'ST', 'ST', 'RW'], ['CM', 'CM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '4123': [['LW', 'ST', 'RW'], ['LCM', 'RCM'], ['CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '4141': [['ST'], ['LM', 'LCM', 'RCM', 'RM'], ['CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '4213': [['LW', 'ST', 'RW'], ['CAM'], ['CDM', 'CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '4231': [['ST'], ['LAM', 'CAM', 'RAM'], ['CDM', 'CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '4222': [['ST', 'ST'], ['LAM', 'RAM'], ['CDM', 'CDM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '424': [['LW', 'ST', 'ST', 'RW'], ['LCM', 'RCM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
   '4312': [['ST', 'ST'], ['CAM'], ['LCM', 'CM', 'RCM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
   '433': [['LW', 'ST', 'RW'], ['LCM', 'CM', 'RCM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '4411': [['ST'], ['CF'], ['LM', 'CM', 'CM', 'RM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '442': [['ST', 'ST'], ['LM', 'CM', 'CM', 'RM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '451': [['ST'], ['LAM', 'CAM', 'RAM'], ['LCM', 'RCM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
-  '5212': [['ST', 'ST'], ['CAM'], ['LWB', 'CM', 'RWB'], ['LCB', 'CB', 'RCB'], ['GK']],
-  '523': [['LW', 'ST', 'RW'], ['LWB', 'CM', 'RWB'], ['LCB', 'CB', 'RCB'], ['GK']],
+  '4411': [['ST'], ['CF'], ['LM', 'LCM', 'RCM', 'RM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '442': [['ST', 'ST'], ['LM', 'LCM', 'RCM', 'RM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '451': [['ST'], ['LM', 'LCM', 'CM', 'RCM', 'RM'], ['LB', 'LCB', 'RCB', 'RB'], ['GK']],
+  '5212': [['ST', 'ST'], ['CAM'], ['LCM', 'RCM'], ['LWB', 'LCB', 'CB', 'RCB', 'RWB'], ['GK']],
+  '523': [['LW', 'ST', 'RW'], ['LCM', 'RCM'], ['LWB', 'LCB', 'CB', 'RCB', 'RWB'], ['GK']],
   '532': [['ST', 'ST'], ['LCM', 'CM', 'RCM'], ['LWB', 'LCB', 'CB', 'RCB', 'RWB'], ['GK']],
   '541': [['ST'], ['LM', 'LCM', 'RCM', 'RM'], ['LWB', 'LCB', 'CB', 'RCB', 'RWB'], ['GK']]
 };
@@ -37,9 +39,9 @@ function getFormationSlots(formationId) {
 
 function getPositionCategory(pos) {
   const p = String(pos || '').toUpperCase();
-  if (['ST', 'CF', 'LW', 'RW'].includes(p)) return 'FW';
-  if (['CAM', 'CM', 'CDM', 'LM', 'RM'].includes(p)) return 'MF';
-  if (['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p)) return 'DF';
+  if (['ST', 'CF', 'LW', 'RW', 'LF', 'RF'].includes(p)) return 'FW';
+  if (['CAM', 'CM', 'CDM', 'LM', 'RM', 'LAM', 'RAM', 'LCM', 'RCM', 'LDM', 'RDM'].includes(p)) return 'MF';
+  if (['CB', 'LB', 'RB', 'LWB', 'RWB', 'LCB', 'RCB', 'SW'].includes(p)) return 'DF';
   if (p === 'GK') return 'GK';
   return 'OTHER';
 }
@@ -71,36 +73,66 @@ class MatchBanRoom {
   }
 
   reset() {
-    this.status = 'idle'; // 'idle' | 'banning' | 'locked'
-    this.seriesType = 'BO5';
-    this.teamAId = 1;
-    this.teamBId = 2;
+    this.dispose();
+    this.status = 'idle'; // idle | selecting | banning | lineup | lineup_complete
+    this.teamAId = null;
+    this.teamBId = null;
     this.currentGame = 1;
     this.currentBans = { teamA: [], teamB: [] };
-    this.lockedStatus = { teamA: false, teamB: false };
+    this.currentTurnKey = null;
+    this.timeLeft = BAN_TURN_SECONDS;
     this.gameHistory = {};
     this.resetLineups();
   }
 
-  setup({ teamAId, teamBId, seriesType, gameNumber }) {
+  dispose() {
+    if (this.banTimerInterval) clearInterval(this.banTimerInterval);
+    this.banTimerInterval = null;
+  }
+
+  openSelection({ allowRestart = false } = {}) {
+    if (this.draftRoom.status !== 'completed') {
+      return { valid: false, error: 'Draft phải hoàn tất đủ 23 cầu thủ mỗi đội trước khi mở giai đoạn Ban!' };
+    }
+    const canOpen = this.status === 'idle' || (allowRestart && this.status === 'lineup_complete');
+    if (!canOpen) {
+      return { valid: false, error: 'Không thể mở lại màn chọn cặp đấu ở thời điểm hiện tại!' };
+    }
+    this.dispose();
+    this.status = 'selecting';
+    this.teamAId = null;
+    this.teamBId = null;
+    this.currentBans = { teamA: [], teamB: [] };
+    this.currentTurnKey = null;
+    this.timeLeft = BAN_TURN_SECONDS;
+    this.resetLineups();
+    return { valid: true };
+  }
+
+  setup({ teamAId, teamBId }, io) {
+    if (this.draftRoom.status !== 'completed') {
+      return { valid: false, error: 'Draft chưa hoàn tất!' };
+    }
+    if (this.status !== 'selecting') {
+      return { valid: false, error: 'Trọng tài chưa mở màn chọn cặp đấu!' };
+    }
     const parsedTeamAId = parseInt(teamAId, 10);
     const parsedTeamBId = parseInt(teamBId, 10);
-    const hasTeamA = this.draftRoom.teams.some(team => team.id === parsedTeamAId);
-    const hasTeamB = this.draftRoom.teams.some(team => team.id === parsedTeamBId);
+    const hasTeamA = this.draftRoom.teams.some(team => team.id === parsedTeamAId && team.startingXI?.length === 11 && team.subs?.length === 12);
+    const hasTeamB = this.draftRoom.teams.some(team => team.id === parsedTeamBId && team.startingXI?.length === 11 && team.subs?.length === 12);
 
     if (!hasTeamA || !hasTeamB || parsedTeamAId === parsedTeamBId) {
-      return { valid: false, error: 'Cần chọn đúng 2 đội khác nhau để bắt đầu!' };
+      return { valid: false, error: 'Cần chọn đúng 2 đội khác nhau đã hoàn tất Draft!' };
     }
 
     this.teamAId = parsedTeamAId;
     this.teamBId = parsedTeamBId;
-    this.seriesType = ['BO3', 'BO5', 'BO7'].includes(seriesType) ? seriesType : 'BO5';
-    this.currentGame = Math.max(1, parseInt(gameNumber, 10) || 1);
     this.status = 'banning';
     this.currentBans = { teamA: [], teamB: [] };
-    this.lockedStatus = { teamA: false, teamB: false };
-    this.gameHistory = {};
+    this.currentTurnKey = 'teamA';
+    this.timeLeft = BAN_TURN_SECONDS;
     this.resetLineups();
+    this.startBanTimer(io);
     return { valid: true };
   }
 
@@ -125,36 +157,17 @@ class MatchBanRoom {
     return teamKey === 'teamA' ? this.currentBans.teamB : this.currentBans.teamA;
   }
 
-  getMaxBanLimitPerPlayer() {
-    if (this.seriesType === 'BO7') return 3;
-    return 2;
-  }
-
-  getBanCountInSeries(playerId) {
-    let count = 0;
-    for (const g in this.gameHistory) {
-      const hist = this.gameHistory[g];
-      if (hist.teamABans?.some(p => samePlayerId(p.id, playerId))) count++;
-      if (hist.teamBBans?.some(p => samePlayerId(p.id, playerId))) count++;
-    }
-    return count;
-  }
-
-  isBannedInPreviousGame(playerId) {
-    if (this.currentGame <= 1) return false;
-    const prevGameHist = this.gameHistory[this.currentGame - 1];
-    if (!prevGameHist) return false;
-    return Boolean(
-      prevGameHist.teamABans?.some(p => samePlayerId(p.id, playerId)) ||
-      prevGameHist.teamBBans?.some(p => samePlayerId(p.id, playerId))
-    );
+  getCurrentTurnTeamId() {
+    if (this.currentTurnKey === 'teamA') return this.teamAId;
+    if (this.currentTurnKey === 'teamB') return this.teamBId;
+    return null;
   }
 
   validateBanSelection(player, banningTeamId) {
     const teamKey = this.getTeamKey(banningTeamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
     if (this.status !== 'banning') return { valid: false, error: 'Giai đoạn cấm cầu thủ đã kết thúc!' };
-    if (this.lockedStatus[teamKey]) return { valid: false, error: 'Đội bạn đã khóa danh sách cấm!' };
+    if (teamKey !== this.currentTurnKey) return { valid: false, error: 'Chưa tới lượt Ban của đội bạn!' };
 
     const opponentKey = teamKey === 'teamA' ? 'teamB' : 'teamA';
     const rosterPlayer = this.getRosterByKey(opponentKey).find(p => samePlayerId(p.id, player?.id));
@@ -162,19 +175,11 @@ class MatchBanRoom {
 
     const posCat = getPositionCategory(rosterPlayer.pos);
     if (posCat === 'GK') return { valid: false, error: 'QUY TẮC: Không được phép cấm Thủ môn (GK)!' };
-    if (this.isBannedInPreviousGame(rosterPlayer.id)) {
-      return { valid: false, error: `QUY TẮC: Cầu thủ "${rosterPlayer.name}" đã bị cấm ở Game ${this.currentGame - 1}. Không được cấm trùng trong 2 trận liên tiếp!` };
-    }
-
-    const currentBanCount = this.getBanCountInSeries(rosterPlayer.id);
-    const maxLimit = this.getMaxBanLimitPerPlayer();
-    if (currentBanCount >= maxLimit) {
-      return { valid: false, error: `QUY TẮC: Cầu thủ "${rosterPlayer.name}" đã bị cấm ${currentBanCount}/${maxLimit} lần trong loạt trận ${this.seriesType}!` };
-    }
+    if (!['FW', 'MF', 'DF'].includes(posCat)) return { valid: false, error: 'Không xác định được tuyến của cầu thủ này!' };
 
     const selectedList = this.currentBans[teamKey];
     if (selectedList.some(p => samePlayerId(p.id, rosterPlayer.id))) return { valid: false, error: 'Cầu thủ đã được chọn trong danh sách cấm!' };
-    if (selectedList.length >= 5) return { valid: false, error: 'Đã chọn tối đa 5 cầu thủ cấm!' };
+    if (selectedList.length >= BAN_LIMIT_PER_TEAM) return { valid: false, error: 'Đã chọn đủ 5 cầu thủ cấm!' };
 
     const categoryCount = selectedList.filter(p => getPositionCategory(p.pos) === posCat).length;
     if (categoryCount >= 2) {
@@ -184,32 +189,41 @@ class MatchBanRoom {
     return { valid: true, player: rosterPlayer };
   }
 
-  toggleBanPlayer(player, banningTeamId) {
+  banPlayer(player, banningTeamId, io) {
     const teamKey = this.getTeamKey(banningTeamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    const list = this.currentBans[teamKey];
-    const existingIdx = list.findIndex(p => samePlayerId(p.id, player?.id));
-    if (existingIdx >= 0 && this.status === 'banning' && !this.lockedStatus[teamKey]) {
-      const [removed] = list.splice(existingIdx, 1);
-      return { valid: true, action: 'removed', player: removed };
-    }
-
     const check = this.validateBanSelection(player, banningTeamId);
     if (!check.valid) return check;
-    list.push(check.player);
-    return { valid: true, action: 'added', player: check.player };
+    this.currentBans[teamKey].push(check.player);
+    this.advanceBanTurn(io);
+    return { valid: true, action: 'added', player: check.player, completed: this.status === 'lineup' };
   }
 
-  lockTeamBans(banningTeamId) {
-    const teamKey = this.getTeamKey(banningTeamId);
-    if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    if (this.status !== 'banning') return { valid: false, error: 'Giai đoạn cấm cầu thủ đã kết thúc!' };
-    const list = this.currentBans[teamKey];
-    if (list.length !== 5) return { valid: false, error: `Cần chọn đủ đúng 5 cầu thủ cấm trước khi khóa! (Hiện tại: ${list.length}/5)` };
+  toggleBanPlayer(player, banningTeamId, io) {
+    return this.banPlayer(player, banningTeamId, io);
+  }
 
-    this.lockedStatus[teamKey] = true;
-    if (this.lockedStatus.teamA && this.lockedStatus.teamB) {
-      this.status = 'locked';
+  startBanTimer(io, preserveTime = false) {
+    this.dispose();
+    if (this.status !== 'banning' || !io) return;
+    if (!preserveTime) this.timeLeft = BAN_TURN_SECONDS;
+    this.banTimerInterval = setInterval(() => {
+      if (this.status !== 'banning') return;
+      this.timeLeft -= 1;
+      io.to(this.draftRoom.roomId).emit('ban_timer_tick', {
+        timeLeft: this.timeLeft,
+        currentTurnTeamId: this.getCurrentTurnTeamId()
+      });
+      if (this.timeLeft <= 0) this.advanceBanTurn(io);
+    }, 1000);
+  }
+
+  advanceBanTurn(io) {
+    this.dispose();
+    if (this.currentBans.teamA.length === BAN_LIMIT_PER_TEAM && this.currentBans.teamB.length === BAN_LIMIT_PER_TEAM) {
+      this.status = 'lineup';
+      this.currentTurnKey = null;
+      this.timeLeft = 0;
       this.resetLineups();
       this.gameHistory[this.currentGame] = {
         game: this.currentGame,
@@ -217,8 +231,29 @@ class MatchBanRoom {
         teamBBans: [...this.currentBans.teamB],
         timestamp: Date.now()
       };
+      this.broadcastState(io);
+      return;
     }
-    return { valid: true, allLocked: this.status === 'locked' };
+
+    const otherKey = this.currentTurnKey === 'teamA' ? 'teamB' : 'teamA';
+    this.currentTurnKey = this.currentBans[otherKey].length < BAN_LIMIT_PER_TEAM
+      ? otherKey
+      : this.currentTurnKey;
+    this.timeLeft = BAN_TURN_SECONDS;
+    this.startBanTimer(io, true);
+    this.broadcastState(io);
+  }
+
+  broadcastState(io) {
+    // Full ban/lineup state is emitted per authenticated viewer by server.js.
+    // This shared event intentionally contains only turn metadata so one
+    // Captain can never receive the opposing lineup through a room broadcast.
+    if (io) {
+      io.to(this.draftRoom.roomId).emit('ban_timer_tick', {
+        timeLeft: this.timeLeft,
+        currentTurnTeamId: this.getCurrentTurnTeamId()
+      });
+    }
   }
 
   getLineupSalary(lineup) {
@@ -228,7 +263,7 @@ class MatchBanRoom {
   setLineupFormation(teamId, formationId) {
     const teamKey = this.getTeamKey(teamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    if (this.status !== 'locked') return { valid: false, error: 'Chỉ được xếp đội hình sau khi hai đội đã khóa cấm!' };
+    if (!['lineup', 'lineup_complete'].includes(this.status)) return { valid: false, error: 'Chỉ được xếp đội hình sau khi hai đội Ban đủ 5 cầu thủ!' };
     if (!FORMATIONS[formationId]) return { valid: false, error: 'Sơ đồ đội hình không hợp lệ!' };
 
     const current = this.lineups[teamKey];
@@ -253,7 +288,7 @@ class MatchBanRoom {
   setLineupPlayer(teamId, slotId, playerId) {
     const teamKey = this.getTeamKey(teamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    if (this.status !== 'locked') return { valid: false, error: 'Chỉ được xếp đội hình sau khi hai đội đã khóa cấm!' };
+    if (!['lineup', 'lineup_complete'].includes(this.status)) return { valid: false, error: 'Chỉ được xếp đội hình sau khi hai đội Ban đủ 5 cầu thủ!' };
 
     const lineup = this.lineups[teamKey];
     if (lineup.locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
@@ -294,7 +329,7 @@ class MatchBanRoom {
   moveLineupPlayer(teamId, sourceSlotId, targetSlotId) {
     const teamKey = this.getTeamKey(teamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    if (this.status !== 'locked') return { valid: false, error: 'Chỉ được xếp đội hình sau khi hai đội đã khóa cấm!' };
+    if (!['lineup', 'lineup_complete'].includes(this.status)) return { valid: false, error: 'Chỉ được xếp đội hình sau khi hai đội Ban đủ 5 cầu thủ!' };
 
     const lineup = this.lineups[teamKey];
     if (lineup.locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
@@ -333,7 +368,7 @@ class MatchBanRoom {
   clearLineup(teamId) {
     const teamKey = this.getTeamKey(teamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    if (this.status !== 'locked') return { valid: false, error: 'Chưa tới giai đoạn xếp đội hình!' };
+    if (!['lineup', 'lineup_complete'].includes(this.status)) return { valid: false, error: 'Chưa tới giai đoạn xếp đội hình!' };
     if (this.lineups[teamKey].locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
     this.lineups[teamKey] = this.createEmptyLineup(this.lineups[teamKey].formation);
     return { valid: true };
@@ -342,7 +377,7 @@ class MatchBanRoom {
   lockLineup(teamId) {
     const teamKey = this.getTeamKey(teamId);
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
-    if (this.status !== 'locked') return { valid: false, error: 'Chưa tới giai đoạn xếp đội hình!' };
+    if (!['lineup', 'lineup_complete'].includes(this.status)) return { valid: false, error: 'Chưa tới giai đoạn xếp đội hình!' };
 
     const lineup = this.lineups[teamKey];
     if (lineup.locked) return { valid: false, error: 'Đội hình đã được khóa!' };
@@ -358,6 +393,7 @@ class MatchBanRoom {
 
     lineup.locked = true;
     if (this.lineups.teamA.locked && this.lineups.teamB.locked) {
+      this.status = 'lineup_complete';
       this.gameHistory[this.currentGame] = {
         ...this.gameHistory[this.currentGame],
         lineups: JSON.parse(JSON.stringify(this.lineups)),
@@ -368,15 +404,15 @@ class MatchBanRoom {
   }
 
   nextGame() {
-    if (this.status !== 'locked' || !this.lineups.teamA.locked || !this.lineups.teamB.locked) {
-      return { valid: false, error: 'Hai đội phải xếp đủ và khóa đội hình trước khi chuyển sang game tiếp theo!' };
+    return this.restartBanSelection();
+  }
+
+  restartBanSelection() {
+    if (this.status !== 'lineup_complete') {
+      return { valid: false, error: 'Hai đội phải xác nhận đội hình trước khi Ban lại!' };
     }
     this.currentGame += 1;
-    this.currentBans = { teamA: [], teamB: [] };
-    this.lockedStatus = { teamA: false, teamB: false };
-    this.status = 'banning';
-    this.resetLineups();
-    return { valid: true };
+    return this.openSelection({ allowRestart: true });
   }
 
   getState() {
@@ -389,21 +425,44 @@ class MatchBanRoom {
 
     return {
       status: this.status,
-      seriesType: this.seriesType,
       teamAId: this.teamAId,
       teamBId: this.teamBId,
       teamA,
       teamB,
       currentGame: this.currentGame,
       currentBans: this.currentBans,
-      lockedStatus: this.lockedStatus,
+      currentTurnKey: this.currentTurnKey,
+      currentTurnTeamId: this.getCurrentTurnTeamId(),
+      timeLeft: this.timeLeft,
       gameHistory: this.gameHistory,
-      maxBanLimit: this.getMaxBanLimitPerPlayer(),
+      banLimitPerTeam: BAN_LIMIT_PER_TEAM,
+      banTurnSeconds: BAN_TURN_SECONDS,
       lineups,
       lineupSalaryCap: LINEUP_SALARY_CAP,
       formations: Object.keys(FORMATIONS),
       allLineupsLocked: lineups.teamA.locked && lineups.teamB.locked
     };
+  }
+
+  getStateForViewer(role, teamId) {
+    const state = this.getState();
+    if (role !== 'team') return state;
+
+    const teamKey = this.getTeamKey(teamId);
+    const lineups = teamKey && state.lineups[teamKey]
+      ? { [teamKey]: state.lineups[teamKey] }
+      : {};
+    const gameHistory = Object.fromEntries(Object.entries(state.gameHistory).map(([game, history]) => {
+      if (!history?.lineups) return [game, history];
+      return [game, {
+        ...history,
+        lineups: teamKey && history.lineups[teamKey]
+          ? { [teamKey]: history.lineups[teamKey] }
+          : {}
+      }];
+    }));
+
+    return { ...state, lineups, gameHistory };
   }
 }
 
@@ -412,5 +471,7 @@ module.exports = {
   getPositionCategory,
   getFormationSlots,
   FORMATIONS,
-  LINEUP_SALARY_CAP
+  LINEUP_SALARY_CAP,
+  BAN_LIMIT_PER_TEAM,
+  BAN_TURN_SECONDS
 };

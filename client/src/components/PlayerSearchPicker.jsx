@@ -67,6 +67,79 @@ function getPositionBadge(position) {
   return 'bg-amber-500 text-slate-950';
 }
 
+function getPositionTextColor(position) {
+  if (POSITION_GROUPS.FW.includes(position)) return 'text-[#f87171]';
+  if (POSITION_GROUPS.MF.includes(position)) return 'text-[#34d399]';
+  if (POSITION_GROUPS.DF.includes(position)) return 'text-[#60a5fa]';
+  return 'text-[#fbbf24]';
+}
+
+function PickedPlayerRow({ player, isSubstitute = false }) {
+  return (
+    <div className="grid min-h-14 grid-cols-[34px_38px_minmax(0,1fr)_38px_30px] items-center gap-1.5 rounded-xl border border-slate-800 bg-[#101828] px-2 py-1.5 text-xs">
+      <span className={`w-[34px] text-center font-black font-digital ${getPositionTextColor(player.pos)}`}>
+        {player.pos}
+      </span>
+
+      <span className="flex h-12 w-[38px] items-end justify-center overflow-hidden">
+        <img
+          src={player.avatarUrl}
+          alt=""
+          className="h-11 max-w-[38px] object-contain object-bottom drop-shadow"
+          onError={(event) => { event.currentTarget.style.display = 'none'; }}
+        />
+      </span>
+
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center" title={player.seasonName || player.season}>
+            {player.seasonLogoUrl && (
+              <img
+                src={player.seasonLogoUrl}
+                alt={player.seasonName || player.season || 'Mùa thẻ'}
+                className="max-h-5 max-w-5 object-contain drop-shadow"
+                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              />
+            )}
+          </span>
+          <span
+            className={`min-w-0 flex-1 truncate font-black ${isSubstitute ? 'text-slate-300' : 'text-slate-100'}`}
+            title={player.name}
+          >
+            {player.name}
+          </span>
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            {player.traitIconUrl && (
+              <img
+                src={player.traitIconUrl}
+                alt={player.trait || ''}
+                title={player.trait}
+                className="max-h-4 max-w-4 object-contain"
+                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              />
+            )}
+          </span>
+        </span>
+        <span className="mt-0.5 flex items-center gap-1 text-[8px] font-bold leading-none">
+          <span className="tracking-[-1px] text-amber-400" title={`Skill ${player.skill || 0}/5`}>
+            {Array.from({ length: 5 }, (_, index) => (
+              <span key={index} className={index < Number(player.skill || 0) ? 'text-amber-400' : 'text-slate-700'}>★</span>
+            ))}
+          </span>
+          <span className="text-slate-500">{player.baseOvr || player.ovr}</span>
+        </span>
+      </span>
+
+      <span className={`text-right font-digital font-bold ${isSubstitute ? 'text-amber-400' : 'text-neon-green'}`}>
+        {player.ovr}
+      </span>
+      <span className="flex h-6 min-w-7 items-center justify-center rounded-md bg-slate-800 px-1 text-[10px] font-bold text-slate-400" title="Lương">
+        {player.salary}
+      </span>
+    </div>
+  );
+}
+
 export default function PlayerSearchPicker() {
   const { draftState, currentUser, pickPlayer, errorMsg, successMsg } = useDraft();
 
@@ -711,7 +784,7 @@ export default function PlayerSearchPicker() {
       </div>
 
       {/* 3. Right Panel: Compact Picked Player List */}
-      <div className="w-full xl:w-72 bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col shrink-0">
+      <div className="w-full xl:w-80 bg-[#0a101d] border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col shrink-0">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
           <div className="text-xs font-black tracking-wide text-white">
@@ -748,7 +821,8 @@ export default function PlayerSearchPicker() {
           <div className="flex justify-between items-center text-xs text-slate-400">
             <span>Chính: <strong className="text-white">{myTeam?.startingXI?.length || 0}/11</strong></span>
             <span>Dự bị: <strong className="text-white">{myTeam?.subs?.length || 0}/12</strong></span>
-            <span>GK: <strong className={myTeam?.gkCount >= 2 ? 'text-neon-green' : 'text-amber-400'}>{myTeam?.gkCount || 0}/2</strong></span>
+            <span>GK chính: <strong className={myTeam?.mainGkCount === 1 ? 'text-neon-green' : 'text-amber-400'}>{myTeam?.mainGkCount || 0}/1</strong></span>
+            <span>GK dự bị: <strong className={myTeam?.subGkCount === 1 ? 'text-neon-green' : 'text-amber-400'}>{myTeam?.subGkCount || 0}/1</strong></span>
           </div>
         </div>
 
@@ -762,19 +836,7 @@ export default function PlayerSearchPicker() {
             <div className="text-xs text-slate-600 py-3 text-center italic">No players picked yet.</div>
           ) : (
             myTeam?.startingXI?.map((p, idx) => (
-              <div
-                key={p.id + idx}
-                className="p-2 rounded-lg bg-[#101828] border border-slate-800 flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="font-black text-amber-400 w-6">{p.pos}</span>
-                  <span className="truncate font-semibold text-slate-200">{p.name}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-digital text-neon-green font-bold">{p.ovr}</span>
-                  <span className="text-[10px] px-1 bg-slate-800 rounded text-slate-400">{p.salary}</span>
-                </div>
-              </div>
+              <PickedPlayerRow key={p.id + idx} player={p} />
             ))
           )}
 
@@ -784,19 +846,7 @@ export default function PlayerSearchPicker() {
                 Dự bị ({myTeam?.subs?.length || 0}/12)
               </div>
               {myTeam?.subs?.map((p, idx) => (
-                <div
-                  key={p.id + idx}
-                  className="p-2 rounded-lg bg-[#101828] border border-slate-800 flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="font-black text-neon-cyan w-6">{p.pos}</span>
-                    <span className="truncate font-semibold text-slate-300">{p.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-digital text-amber-400 font-bold">{p.ovr}</span>
-                    <span className="text-[10px] px-1 bg-slate-800 rounded text-slate-400">{p.salary}</span>
-                  </div>
-                </div>
+                <PickedPlayerRow key={p.id + idx} player={p} isSubstitute />
               ))}
             </>
           )}

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "smoke:players": "node scripts/generateSmokeRosters.js",
     "test": "node --test"
   },
   "dependencies": {

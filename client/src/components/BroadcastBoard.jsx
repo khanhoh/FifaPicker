@@ -20,7 +20,6 @@ const POS_COLORS = {
   GK: 'border-l-4 border-l-[#f59e0b] text-[#fbbf24]'
 };
 
-// 8R đặt 3 ô theo yêu cầu
 const MAIN_ROUND_SLOTS = [
   { label: '1R', count: 1 },
   { label: '2R', count: 1 },
@@ -37,7 +36,8 @@ const SUB_ROUND_SLOTS = [
   { label: '-2R', count: 2 },
   { label: '-3R', count: 3 },
   { label: '-4R', count: 2 },
-  { label: '-5R', count: 3 }
+  { label: '-5R', count: 3 },
+  { label: '-6R', count: 1, isCompensate: true }
 ];
 
 export default function BroadcastBoard() {
@@ -47,32 +47,106 @@ export default function BroadcastBoard() {
   const currentTeam = draftState?.currentTeam;
   const currentRound = draftState?.currentRound;
   const picksInCurrentTurn = draftState?.picksInCurrentTurn || 0;
+  const turnRoundPickOffset = draftState?.turnRoundPickOffset || 0;
+
+  const getRoundSlotCount = (slotInfo) => {
+    if (!slotInfo.isCompensate) return slotInfo.count;
+    const existingCount = Math.max(0, ...teams.map(team => team.roundPicks?.[slotInfo.label]?.length || 0));
+    const activeTarget = currentRound?.label === slotInfo.label
+      ? turnRoundPickOffset + (draftState?.neededPicks || 0)
+      : 0;
+    return Math.max(slotInfo.count, existingCount, activeTarget);
+  };
 
   // Render player sub-slot
   const renderPlayerSlot = (player, isActiveSlot, heightClass = 'h-9') => {
     if (player) {
+      const isCompact = heightClass === 'h-8';
+      const feet = String(player.weakFoot || '0-0').split('-');
       return (
         <div
-          className={`${heightClass} px-2.5 rounded-lg flex items-center justify-between border bg-[#0d1422] border-slate-800/90 ${
+          className={`${heightClass} grid grid-cols-[2.25rem_2rem_minmax(0,1fr)_2.5rem] 2xl:grid-cols-[2.25rem_2rem_minmax(0,1fr)_1.5rem_2.25rem_1.75rem_2.5rem] items-center gap-1 overflow-hidden px-2 rounded-lg border bg-[#0d1422] border-slate-800/90 ${
             POS_COLORS[player.pos] || 'border-l-4 border-l-slate-500 text-slate-300'
           } shadow-sm transition`}
         >
-          <div className="flex items-center gap-2 truncate">
-            <span className="font-black text-xs tracking-wider">
-              {player.pos}
+          <span className={`${isCompact ? 'text-[10px]' : 'text-xs'} block w-9 font-black font-digital tracking-wide`}>
+            {player.pos}
+          </span>
+
+          <span className="flex h-full w-8 shrink-0 items-end justify-center overflow-hidden">
+            <img
+              src={player.avatarUrl}
+              alt=""
+              className={`${isCompact ? 'h-7' : 'h-8'} max-w-8 object-contain object-bottom drop-shadow`}
+              onError={(event) => { event.currentTarget.style.display = 'none'; }}
+            />
+          </span>
+
+          <span className="flex min-w-0 items-center gap-1">
+            <span
+              className={`${isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'} flex shrink-0 items-center justify-center`}
+              title={player.seasonName || player.season}
+            >
+              {player.seasonLogoUrl && (
+                <img
+                  src={player.seasonLogoUrl}
+                  alt={player.seasonName || player.season}
+                  className="max-h-full max-w-full object-contain"
+                  onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                />
+              )}
             </span>
-            {player.seasonLogoUrl && (
-              <img
-                src={player.seasonLogoUrl}
-                alt={player.seasonName || player.season}
-                className="w-4 h-4 object-contain"
-              />
-            )}
-            <span className="text-xs font-bold truncate text-slate-100" title={player.name}>
+            <span
+              className={`${isCompact ? 'text-[10px]' : 'text-xs'} min-w-0 flex-1 truncate font-black text-slate-100`}
+              title={player.name}
+            >
               {player.name}
             </span>
-          </div>
-          <span className="text-xs font-digital font-bold text-amber-400 opacity-90">
+            <span className={`${isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'} flex shrink-0 items-center justify-center`}>
+              {player.traitIconUrl && (
+                <img
+                  src={player.traitIconUrl}
+                  alt={player.trait || ''}
+                  title={player.trait}
+                  className="max-h-full max-w-full object-contain drop-shadow"
+                  onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                />
+              )}
+            </span>
+          </span>
+
+          <span className="hidden h-5 w-6 items-center justify-center 2xl:flex">
+            {player.clubCrestUrl && (
+              <img
+                src={player.clubCrestUrl}
+                alt={player.clubName || ''}
+                title={player.clubName}
+                className="max-h-5 max-w-5 object-contain"
+                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              />
+            )}
+          </span>
+
+          <span className="hidden h-5 w-9 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-[8px] font-black 2xl:flex">
+            {feet.slice(0, 2).map((value, index) => {
+              const isPreferred = (index === 0 && player.preferredFoot === 'left')
+                || (index === 1 && player.preferredFoot === 'right');
+              return (
+                <span
+                  key={`${player.id}-foot-${index}`}
+                  className={`grid h-full flex-1 place-items-center ${isPreferred ? 'bg-lime-500 text-slate-950' : 'text-slate-200'}`}
+                >
+                  {value}
+                </span>
+              );
+            })}
+          </span>
+
+          <span className="hidden h-6 w-7 place-items-center rounded-full border-2 border-slate-600 bg-slate-900 text-[9px] font-black text-slate-100 2xl:grid" title="FP">
+            {player.salary}
+          </span>
+
+          <span className={`${isCompact ? 'text-[10px]' : 'text-xs'} w-10 justify-self-end text-right font-digital font-bold tabular-nums text-amber-400 opacity-90`}>
             {player.ovr}
           </span>
         </div>
@@ -153,6 +227,7 @@ export default function BroadcastBoard() {
           {/* Main Squad Rows */}
           {MAIN_ROUND_SLOTS.map((slotInfo) => {
             const isCurrentRow = currentRound?.label === slotInfo.label;
+            const slotCount = getRoundSlotCount(slotInfo);
 
             return (
               <div
@@ -172,9 +247,9 @@ export default function BroadcastBoard() {
                   }`}
                 >
                   <span>{slotInfo.label}</span>
-                  {slotInfo.count > 1 && (
+                  {slotCount > 1 && (
                     <span className="text-[9px] font-normal text-slate-500">
-                      ({slotInfo.count}p)
+                      ({slotCount}p)
                     </span>
                   )}
                 </div>
@@ -185,9 +260,9 @@ export default function BroadcastBoard() {
 
                   return (
                     <div key={t.id} className="flex flex-col gap-1.5">
-                      {Array.from({ length: slotInfo.count }).map((_, subIdx) => {
+                      {Array.from({ length: slotCount }).map((_, subIdx) => {
                         const player = t.roundPicks?.[slotInfo.label]?.[subIdx] || null;
-                        const isActiveSlot = isTeamActive && !player && subIdx === picksInCurrentTurn;
+                        const isActiveSlot = isTeamActive && !player && subIdx === turnRoundPickOffset + picksInCurrentTurn;
 
                         return (
                           <React.Fragment key={subIdx}>
@@ -210,6 +285,7 @@ export default function BroadcastBoard() {
           {/* Sub Squad Rows (-1R to -5R): Read strictly from roundPicks */}
           {SUB_ROUND_SLOTS.map((slotInfo) => {
             const isCurrentSubRow = currentRound?.label === slotInfo.label;
+            const slotCount = getRoundSlotCount(slotInfo);
 
             return (
               <div
@@ -230,7 +306,7 @@ export default function BroadcastBoard() {
                 >
                   <span>{slotInfo.label}</span>
                   <span className="text-[9px] font-normal text-slate-500">
-                    ({slotInfo.count}p)
+                    ({slotCount}p)
                   </span>
                 </div>
 
@@ -240,9 +316,9 @@ export default function BroadcastBoard() {
 
                   return (
                     <div key={t.id} className="flex flex-col gap-1.5">
-                      {Array.from({ length: slotInfo.count }).map((_, subIdx) => {
+                      {Array.from({ length: slotCount }).map((_, subIdx) => {
                         const subPlayer = t.roundPicks?.[slotInfo.label]?.[subIdx] || null;
-                        const isActiveSlot = isTeamActive && !subPlayer && subIdx === picksInCurrentTurn;
+                        const isActiveSlot = isTeamActive && !subPlayer && subIdx === turnRoundPickOffset + picksInCurrentTurn;
 
                         return (
                           <React.Fragment key={subIdx}>
@@ -324,7 +400,8 @@ export default function BroadcastBoard() {
 
                 <div className="flex justify-between items-center text-[11px] text-slate-300">
                   <span>Cầu thủ: <strong className="text-white font-bold">{totalPlayers}/23</strong></span>
-                  <span>GK: <strong className={t.gkCount >= 2 ? 'text-neon-green font-bold' : t.gkCount === 1 ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>{t.gkCount}/2</strong></span>
+                  <span>GK chính: <strong className={t.mainGkCount === 1 ? 'text-neon-green font-bold' : 'text-red-400 font-bold'}>{t.mainGkCount || 0}/1</strong></span>
+                  <span>GK dự bị: <strong className={t.subGkCount === 1 ? 'text-neon-green font-bold' : 'text-red-400 font-bold'}>{t.subGkCount || 0}/1</strong></span>
                 </div>
               </div>
 

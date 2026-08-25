@@ -1,11 +1,12 @@
 import React from 'react';
 import { useDraft } from '../context/DraftContext';
 import { FCLogo, TeamLogo } from '../assets/teamLogos';
-import { Play, Pause, RotateCcw, SkipForward, Tv, UserCheck, Lock, Ban, Wifi, WifiOff } from 'lucide-react';
+import { Play, Pause, RotateCcw, SkipForward, Tv, UserCheck, Lock, Ban, Wifi, WifiOff, LogOut } from 'lucide-react';
 
 export default function Header({ onOpenRules, currentView, setCurrentView }) {
   const {
     draftState,
+    banState,
     currentUser,
     lobbyState,
     connectionStatus,
@@ -13,7 +14,8 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
     pauseDraft,
     resumeDraft,
     resetDraft,
-    manualNextTurn
+    manualNextTurn,
+    exitRoom
   } = useDraft();
 
   const currentRound = draftState?.currentRound;
@@ -22,6 +24,7 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
   const isDrafting = draftState?.status === 'drafting';
   const isPaused = draftState?.status === 'paused';
   const isReferee = currentUser.role === 'referee';
+  const canAccessBan = draftState?.status === 'completed' && banState?.status && banState.status !== 'idle';
   const isMyTurn = currentTeam && currentUser.role === 'team' && currentUser.teamId === currentTeam.id;
 
   const formatTime = (seconds) => {
@@ -71,22 +74,24 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
             <UserCheck className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Chọn Thẻ</span>
           </button>
-          <button
-            onClick={() => setCurrentView('ban')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition ${
-              currentView === 'ban'
-                ? 'bg-red-600 text-white font-black shadow-[0_0_10px_rgba(239,68,68,0.5)]'
-                : 'text-slate-400 hover:text-red-400'
-            }`}
-          >
-            <Ban className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Cấm Cầu Thủ</span>
-          </button>
+          {canAccessBan && (
+            <button
+              onClick={() => setCurrentView('ban')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition ${
+                currentView === 'ban'
+                  ? 'bg-red-600 text-white font-black shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                  : 'text-slate-400 hover:text-red-400'
+              }`}
+            >
+              <Ban className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Cấm Cầu Thủ</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Center: Digital Neon Timer & Turn Banner */}
-      <div className="flex items-center gap-3">
+      {!canAccessBan && <div className="flex items-center gap-3">
         {/* Digital Timer */}
         <div
           className={`flex items-center justify-center px-4 py-0.5 rounded-xl font-digital text-2xl md:text-3xl font-black tracking-widest border transition ${
@@ -135,7 +140,7 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
             {currentRound.phase === 'MAIN' ? 'S1' : 'S2'} / {currentRound.label} ROUND
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Right: User Login & Referee Controls */}
       <div className="flex items-center gap-2">
@@ -159,7 +164,7 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
         </div>
 
         {/* Referee Controls */}
-        {isReferee ? (
+        {isReferee && ['waiting', 'drafting', 'paused'].includes(draftState?.status) ? (
           <div className="flex items-center gap-1 bg-[#0b1220] p-1 rounded-xl border border-slate-700 shadow">
             {!isDrafting && !isPaused ? (
               <button
@@ -203,12 +208,22 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
-        ) : (
+        ) : !isReferee ? (
           <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium px-2 py-1 bg-slate-900/60 rounded-lg border border-slate-800">
             <Lock className="w-3 h-3 text-slate-500" />
             Quyền Trọng Tài
           </div>
-        )}
+        ) : null}
+
+        <button
+          type="button"
+          onClick={exitRoom}
+          title="Thoát tạm thời — giữ nguyên vị trí và dữ liệu để vào lại"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[11px] font-black text-slate-400 transition hover:border-amber-700 hover:bg-amber-950/40 hover:text-amber-300"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          <span className="hidden xl:inline">THOÁT</span>
+        </button>
       </div>
     </header>
   );

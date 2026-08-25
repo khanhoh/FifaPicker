@@ -38,7 +38,7 @@ export default function RulesModal({ isOpen, onClose }) {
                   </div>
                 </li>
                 <li>Mỗi đội pick tổng cộng <strong>23 cầu thủ</strong> (11 chính + 12 dự bị).</li>
-                <li>Mất kết nối không làm Draft tạm dừng. Đồng hồ vẫn chạy và đội không kịp reconnect sẽ <strong>mất số pick còn lại của lượt đó</strong>.</li>
+                <li>Mất kết nối không làm Draft tạm dừng. Đội có thể mất lượt hiện tại, nhưng sau mỗi phase hệ thống sẽ mở lượt bù đúng số cầu thủ còn thiếu.</li>
                 <li><strong>Pick Độc Quyền</strong>: 1 cầu thủ chỉ được chọn bởi 1 đội trên toàn bộ các mùa thẻ.</li>
               </ul>
             </div>
@@ -51,8 +51,8 @@ export default function RulesModal({ isOpen, onClose }) {
                 <li><strong>Quỹ lương Đội hình chính</strong>: Tổng lương 11 cầu thủ $\le$ <strong className="text-amber-400">305</strong> (dựa trên thuộc tính <code>attrA</code> trong API).</li>
                 <li><strong>Yêu cầu Thủ Môn (GK)</strong>:
                   <ul className="list-circle list-inside pl-4 text-xs space-y-0.5 text-slate-400 mt-1">
-                    <li>Đội hình chính (11 người): Có ít nhất <strong>1 GK</strong>.</li>
-                    <li>Toàn đội (23 người): Có ít nhất <strong>2 GK</strong>.</li>
+                    <li>Đội hình chính (11 người): Có <strong>đúng 1 GK</strong>.</li>
+                    <li>Danh sách dự bị (12 người): Có <strong>đúng 1 GK</strong>.</li>
                   </ul>
                 </li>
                 <li><strong>Tính OVR</strong>: OVR hiển thị = OVR gốc + Điểm cộng thẻ tối đa theo file Excel.</li>
@@ -79,7 +79,7 @@ export default function RulesModal({ isOpen, onClose }) {
                 </thead>
                 <tbody className="divide-y divide-slate-800">
                   <tr className="hover:bg-slate-800/40">
-                    <td rowSpan={8} className="p-2 font-bold text-neon-green bg-slate-900/40 border-r border-slate-800">
+                    <td rowSpan={3} className="p-2 font-bold text-neon-green bg-slate-900/40 border-r border-slate-800">
                       ROUND 1<br /><span className="text-[10px] text-slate-400 font-normal">Đội hình chính (11)</span>
                     </td>
                     <td className="p-2 font-semibold text-white">1R - 3R</td>
@@ -97,14 +97,14 @@ export default function RulesModal({ isOpen, onClose }) {
                   </tr>
                   <tr className="hover:bg-slate-800/40 bg-amber-950/20">
                     <td className="p-2 font-semibold text-amber-300">8R</td>
-                    <td className="p-2 text-amber-300 font-bold">Bù cho đủ (3 ô)</td>
-                    <td className="p-2">30 giây</td>
+                    <td className="p-2 text-amber-300 font-bold">Bù đúng số còn thiếu</td>
+                    <td className="p-2">30 giây / cầu thủ</td>
                     <td className="p-2">11 cầu thủ</td>
-                    <td className="p-2 text-amber-400">Tự động <strong>SKIP</strong> nếu đã đủ 11 thẻ.</td>
+                    <td className="p-2 text-amber-400">Lặp đến khi cả 4 đội đủ 11 và đúng 1 GK.</td>
                   </tr>
 
                   <tr className="hover:bg-slate-800/40">
-                    <td rowSpan={5} className="p-2 font-bold text-neon-cyan bg-slate-900/40 border-r border-slate-800">
+                    <td rowSpan={6} className="p-2 font-bold text-neon-cyan bg-slate-900/40 border-r border-slate-800">
                       ROUND 2<br /><span className="text-[10px] text-slate-400 font-normal">Dự bị (+12 = 23)</span>
                     </td>
                     <td className="p-2 font-semibold text-white">-1R (2.1)</td>
@@ -139,7 +139,14 @@ export default function RulesModal({ isOpen, onClose }) {
                     <td className="p-2 text-neon-cyan font-bold">3 cầu thủ</td>
                     <td className="p-2">90 giây</td>
                     <td className="p-2 text-neon-green font-bold">23 cầu thủ</td>
-                    <td className="p-2 text-neon-green">Bắt buộc toàn đội đủ $\ge$ 2 GK</td>
+                    <td className="p-2 text-neon-green">Dự bị bắt buộc đúng 1 GK</td>
+                  </tr>
+                  <tr className="hover:bg-slate-800/40 bg-amber-950/20">
+                    <td className="p-2 font-semibold text-amber-300">-6R (Bù)</td>
+                    <td className="p-2 text-amber-300 font-bold">Bù đúng số còn thiếu</td>
+                    <td className="p-2">30 giây / cầu thủ</td>
+                    <td className="p-2 text-neon-green font-bold">Đủ 23 mới kết thúc</td>
+                    <td className="p-2 text-amber-400">Lặp đến khi cả 4 đội đủ 12 dự bị và đúng 1 GK.</td>
                   </tr>
                 </tbody>
               </table>
@@ -153,19 +160,13 @@ export default function RulesModal({ isOpen, onClose }) {
             </div>
             <ul className="list-disc list-inside space-y-1.5 text-slate-300">
               <li><strong>Số lượng cấm</strong>: Trước mỗi trận đấu đơn, mỗi đội được quyền cấm đúng <strong>5 cầu thủ</strong> của đối phương.</li>
+              <li>Hai đội <strong>luân phiên</strong> cấm từng cầu thủ, mỗi lượt có <strong>30 giây</strong>. Mỗi lựa chọn phải xác nhận và <strong>không thể hoàn tác</strong>.</li>
               <li><strong>Giới hạn theo vị trí</strong>:
                 <ul className="list-circle list-inside pl-4 text-xs space-y-0.5 text-amber-300 mt-0.5">
                   <li>Tối đa <strong>2 Tiền đạo (FW)</strong></li>
                   <li>Tối đa <strong>2 Tiền vệ (MF)</strong></li>
                   <li>Tối đa <strong>2 Hậu vệ (DF)</strong></li>
                   <li><strong className="text-red-400 underline">KHÔNG ĐƯỢC PHÉP CẤM THỦ MÔN (GK)</strong>.</li>
-                </ul>
-              </li>
-              <li><strong>Không cấm trùng 2 trận liên tiếp</strong>: Không được phép cấm cầu thủ đã bị cấm ở trận liền trước đó.</li>
-              <li><strong>Giới hạn số lần cấm trong loạt trận</strong>:
-                <ul className="list-circle list-inside pl-4 text-xs space-y-0.5 text-slate-400 mt-0.5">
-                  <li>Loạt trận <strong>BO5</strong>: Mỗi cầu thủ chỉ được cấm tối đa <strong>2 lần</strong>.</li>
-                  <li>Loạt trận <strong>BO7</strong>: Mỗi cầu thủ chỉ được cấm tối đa <strong>3 lần</strong>.</li>
                 </ul>
               </li>
             </ul>
@@ -180,7 +181,7 @@ export default function RulesModal({ isOpen, onClose }) {
               <li>Mỗi đội chọn sơ đồ và xếp đúng <strong>11 cầu thủ</strong> từ danh sách 23 cầu thủ đã Draft.</li>
               <li>Các cầu thủ bị đối phương cấm trong game hiện tại <strong className="text-red-400">không được sử dụng</strong>.</li>
               <li>Đội hình phải có <strong>Thủ môn tại vị trí GK</strong> và tổng lương không vượt quá <strong className="text-amber-400">305</strong>.</li>
-              <li>Một cầu thủ chỉ được xuất hiện ở một vị trí. Hai đội phải khóa đội hình trước khi Trọng tài chuyển sang game tiếp theo.</li>
+              <li>Một cầu thủ chỉ được xuất hiện ở một vị trí. Sau khi hai đội xác nhận, Trọng tài có thể Ban lại, restart Draft hoặc kết thúc room.</li>
             </ul>
           </div>
         </div>

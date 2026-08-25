@@ -13,7 +13,7 @@ export default function RoomLobby() {
     randomizeTeams,
     destroyRoom,
     removePlayer,
-    leaveRoom,
+    exitRoom,
     errorMsg
   } = useDraft();
   const [copied, setCopied] = useState(false);
@@ -150,11 +150,13 @@ export default function RoomLobby() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isReferee && (
-              <button onClick={leaveRoom} className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-black text-slate-400 transition hover:border-red-800 hover:text-red-400">
-                <LogOut className="h-4 w-4" /> RỜI ROOM
-              </button>
-            )}
+            <button
+              onClick={exitRoom}
+              title="Thoát tạm thời, giữ nguyên vị trí để vào lại"
+              className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-black text-slate-400 transition hover:border-amber-700 hover:text-amber-300"
+            >
+              <LogOut className="h-4 w-4" /> THOÁT ROOM
+            </button>
             {isReferee && (
               <>
                 <button

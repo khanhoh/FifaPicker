@@ -81,6 +81,15 @@ app.post('/api/rooms/:roomCode/watch', (req, res) => {
   return res.status(201).json({ success: true, room: result.room, session: result.session });
 });
 
+app.post('/api/rooms/:roomCode/resume', (req, res) => {
+  const result = roomManager.resumeRoom({
+    roomCode: req.params.roomCode,
+    token: req.body?.token
+  });
+  if (!result.valid) return sendApiError(res, 401, result.error);
+  return res.json({ success: true, room: result.room, session: result.session });
+});
+
 app.get('/api/seasons', async (req, res) => {
   const metadata = await getSeasonMetadataMaps();
   const seasons = getAllSeasons().map((season) => {
@@ -159,7 +168,16 @@ function broadcastLobby(room) {
 }
 
 function broadcastBanState(room) {
-  io.to(room.code).emit('ban_state_update', room.banRoom.getState());
+  const owners = [room.referee, ...room.participants, ...room.spectators.values()];
+  owners.forEach((owner) => {
+    if (!owner.socketId) return;
+    const context = roomManager.getAuthContext(owner.token);
+    if (!context) return;
+    io.to(owner.socketId).emit(
+      'ban_state_update',
+      room.banRoom.getStateForViewer(context.role, context.teamId)
+    );
+  });
 }
 
 function broadcastAllState(room) {
@@ -198,7 +216,7 @@ io.on('connection', (socket) => {
     return;
   }
 
-  const { room, role, owner, previousSocketId } = connected;
+  const { room, role, owner, teamId, previousSocketId } = connected;
   if (previousSocketId && previousSocketId !== socket.id) {
     const previousSocket = io.sockets.sockets.get(previousSocketId);
     if (previousSocket) {
@@ -211,7 +229,7 @@ io.on('connection', (socket) => {
   socket.emit('session_update', roomManager.getSessionPayload(socket.data.token));
   socket.emit('room_lobby_update', roomManager.getPublicRoom(room));
   socket.emit('draft_state_update', room.draftRoom.getState());
-  socket.emit('ban_state_update', room.banRoom.getState());
+  socket.emit('ban_state_update', room.banRoom.getStateForViewer(role, teamId));
   broadcastLobby(room);
   console.log(`🔌 ${role} connected to room ${room.code}: ${owner.id}`);
 
@@ -312,31 +330,28 @@ io.on('connection', (socket) => {
   socket.on('leave_room', () => {
     const context = getSocketContext(socket);
     if (!context) return;
-    if (context.role === 'team') {
-      const result = roomManager.removeParticipant(context.room, context.owner.id);
-      if (!result.valid) {
-        socket.emit('action_error', { message: result.error });
-        return;
-      }
-      socket.emit('session_revoked', { message: 'Bạn đã rời room.' });
-      socket.disconnect(true);
-      broadcastAllState(context.room);
-      return;
-    }
-    if (context.role === 'spectator') {
-      context.room.spectators.delete(context.owner.id);
-      roomManager.sessions.delete(context.owner.token);
-      socket.emit('session_revoked', { message: 'Bạn đã rời room.' });
-      socket.disconnect(true);
-      broadcastLobby(context.room);
-    }
+    // Thoát room chỉ làm user offline. Participant, session và toàn bộ state
+    // vẫn được giữ để cùng token có thể vào lại và tiếp tục.
+    socket.emit('room_exit_ready', { roomCode: context.room.code });
+    socket.disconnect(true);
   });
 
-  socket.on('setup_ban_phase', ({ teamAId, teamBId, seriesType, gameNumber } = {}) => {
+  socket.on('setup_ban_phase', ({ teamAId, teamBId } = {}) => {
     const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền thiết lập phiên Cấm cầu thủ!');
     if (!context) return;
     const { banRoom } = context.room;
-    const result = banRoom.setup({ teamAId, teamBId, seriesType, gameNumber });
+    const result = banRoom.setup({ teamAId, teamBId }, io);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+      return;
+    }
+    broadcastBanState(context.room);
+  });
+
+  socket.on('open_ban_stage', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền mở giai đoạn Ban!');
+    if (!context) return;
+    const result = context.room.banRoom.openSelection();
     if (!result.valid) {
       socket.emit('action_error', { message: result.error });
       return;
@@ -347,23 +362,15 @@ io.on('connection', (socket) => {
   socket.on('toggle_ban_player', ({ player } = {}) => {
     const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền chọn cầu thủ cấm!');
     if (!context) return;
-    const result = context.room.banRoom.toggleBanPlayer(player, context.teamId);
+    const result = context.room.banRoom.banPlayer(player, context.teamId, io);
     if (!result.valid) socket.emit('action_error', { message: result.error });
     else broadcastBanState(context.room);
   });
 
-  socket.on('lock_team_bans', () => {
-    const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền khóa danh sách cấm!');
+  socket.on('restart_ban_selection', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền Ban lại!');
     if (!context) return;
-    const result = context.room.banRoom.lockTeamBans(context.teamId);
-    if (!result.valid) socket.emit('action_error', { message: result.error });
-    else broadcastBanState(context.room);
-  });
-
-  socket.on('next_game_ban', () => {
-    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền chuyển ván cấm!');
-    if (!context) return;
-    const result = context.room.banRoom.nextGame();
+    const result = context.room.banRoom.restartBanSelection();
     if (!result.valid) {
       socket.emit('action_error', { message: result.error });
       return;
@@ -409,13 +416,6 @@ io.on('connection', (socket) => {
     const result = context.room.banRoom.lockLineup(context.teamId);
     if (!result.valid) socket.emit('action_error', { message: result.error });
     else broadcastBanState(context.room);
-  });
-
-  socket.on('reset_ban_phase', () => {
-    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền đặt lại phiên cấm!');
-    if (!context) return;
-    context.room.banRoom.reset();
-    broadcastBanState(context.room);
   });
 
   socket.on('disconnect', () => {

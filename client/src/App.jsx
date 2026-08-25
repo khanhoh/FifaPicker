@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DraftProvider, useDraft } from './context/DraftContext';
 import Header from './components/Header';
 import BroadcastBoard from './components/BroadcastBoard';
@@ -7,11 +7,20 @@ import MatchBanView from './components/MatchBanView';
 import RulesModal from './components/RulesModal';
 import RoomGateway from './components/RoomGateway';
 import RoomLobby from './components/RoomLobby';
+import DraftCompleteModal from './components/DraftCompleteModal';
+import SmokeApp from './smoke/SmokeApp';
 
 function MainApp() {
-  const { session, lobbyState } = useDraft();
+  const { session, lobbyState, draftState, banState } = useDraft();
   const [currentView, setCurrentView] = useState('broadcast'); // 'broadcast' | 'picker' | 'ban'
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+
+  const banIsOpen = draftState?.status === 'completed' && banState?.status && banState.status !== 'idle';
+
+  useEffect(() => {
+    if (banIsOpen) setCurrentView('ban');
+    else if (currentView === 'ban') setCurrentView('broadcast');
+  }, [banIsOpen, currentView]);
 
   if (!session) return <RoomGateway />;
 
@@ -53,11 +62,15 @@ function MainApp() {
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
       />
+      <DraftCompleteModal />
     </div>
   );
 }
 
 export default function App() {
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (pathname === '/smoke') return <SmokeApp />;
+
   return (
     <DraftProvider>
       <MainApp />

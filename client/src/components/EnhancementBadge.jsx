@@ -44,15 +44,13 @@ export default function EnhancementBadge({ level, size = 'md', className = '' })
 
   const tier = TIER_CLASSES[getTier(grade)];
   const sizeClassName = SIZE_CLASSES[size] || SIZE_CLASSES.md;
-  const clipPath = 'polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px)';
 
   return (
     <span
       role="img"
       aria-label={`Cấp thẻ tối đa +${grade}`}
       title={`Cấp thẻ tối đa +${grade}`}
-      style={{ clipPath }}
-      className={`${className} ${sizeClassName} relative isolate inline-flex shrink-0 items-center justify-center overflow-hidden border bg-gradient-to-b ${tier.face} ${tier.border} font-sans font-black tabular-nums tracking-tight shadow-[0_4px_10px_rgba(2,6,23,0.38)]`}
+      className={`${className} ${sizeClassName} relative isolate inline-flex shrink-0 items-center justify-center overflow-hidden rounded-sm border bg-gradient-to-b ${tier.face} ${tier.border} font-sans font-black tabular-nums tracking-tight shadow-[0_4px_10px_rgba(2,6,23,0.38)]`}
     >
       <span aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-white/90" />
       <span aria-hidden="true" className="absolute inset-y-0 right-0 w-px bg-slate-700/25" />

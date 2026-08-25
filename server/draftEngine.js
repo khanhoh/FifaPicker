@@ -1,5 +1,5 @@
 const ROUNDS_CONFIG = [
-  // --- ROUND 1: ĐỘI HÌNH CHÍNH (11 CẦU THỦ, MAX LƯƠNG 305, >= 1 GK) ---
+  // --- ROUND 1: ĐỘI HÌNH CHÍNH (11 CẦU THỦ, MAX LƯƠNG 305, ĐÚNG 1 GK) ---
   { roundNum: 1, label: '1R', phase: 'MAIN', picksPerTurn: 1, timeLimit: 30, direction: 'FORWARD' },
   { roundNum: 2, label: '2R', phase: 'MAIN', picksPerTurn: 1, timeLimit: 30, direction: 'REVERSE' },
   { roundNum: 3, label: '3R', phase: 'MAIN', picksPerTurn: 1, timeLimit: 30, direction: 'FORWARD' },
@@ -9,12 +9,13 @@ const ROUNDS_CONFIG = [
   { roundNum: 7, label: '7R', phase: 'MAIN', picksPerTurn: 2, timeLimit: 60, direction: 'FORWARD' },
   { roundNum: 8, label: '8R', phase: 'MAIN', picksPerTurn: 1, timeLimit: 30, direction: 'REVERSE', isCompensate: true },
 
-  // --- ROUND 2: DỰ BỊ (12 CẦU THỦ -> TỔNG 23 CẦU THỦ, >= 2 GK) ---
+  // --- ROUND 2: DỰ BỊ (12 CẦU THỦ -> TỔNG 23 CẦU THỦ, ĐÚNG 1 GK) ---
   { roundNum: 9,  label: '-1R', subLabel: '2.1', phase: 'SUB', picksPerTurn: 2, timeLimit: 60, direction: 'FORWARD' },
   { roundNum: 10, label: '-2R', subLabel: '2.2', phase: 'SUB', picksPerTurn: 2, timeLimit: 60, direction: 'REVERSE' },
   { roundNum: 11, label: '-3R', subLabel: '2.3', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'FORWARD' },
   { roundNum: 12, label: '-4R', subLabel: '2.4', phase: 'SUB', picksPerTurn: 2, timeLimit: 60, direction: 'REVERSE' },
-  { roundNum: 13, label: '-5R', subLabel: '2.5', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'REVERSE' }
+  { roundNum: 13, label: '-5R', subLabel: '2.5', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'REVERSE' },
+  { roundNum: 14, label: '-6R', subLabel: 'BÙ', phase: 'SUB', picksPerTurn: 1, timeLimit: 30, direction: 'FORWARD', isCompensate: true }
 ];
 
 function getInitialRoundPicks() {
@@ -31,7 +32,8 @@ function getInitialRoundPicks() {
     '-2R': [null, null],
     '-3R': [null, null, null],
     '-4R': [null, null],
-    '-5R': [null, null, null]
+    '-5R': [null, null, null],
+    '-6R': []
   };
 }
 
@@ -57,7 +59,9 @@ function createDraftTeam(team) {
     subs: [],
     roundPicks: getInitialRoundPicks(),
     totalSalaryMain: 0,
-    gkCount: 0
+    gkCount: 0,
+    mainGkCount: 0,
+    subGkCount: 0
   };
 }
 
@@ -108,6 +112,8 @@ class DraftRoom {
     this.currentRoundIdx = 0;
     this.currentTeamTurnIdx = 0;
     this.picksInCurrentTurn = 0;
+    this.turnPickTarget = 0;
+    this.turnRoundPickOffset = 0;
     this.timeLeft = 30;
     this.pickedPlayerIds = new Set();
     this.pickedPlayerIdentities = new Map();
@@ -134,14 +140,37 @@ class DraftRoom {
     return ROUNDS_CONFIG[this.currentRoundIdx] || null;
   }
 
+  getPhasePlayers(team, phase) {
+    return phase === 'MAIN' ? team.startingXI : team.subs;
+  }
+
+  getPhaseTarget(phase) {
+    return phase === 'MAIN' ? 11 : 12;
+  }
+
+  getPhaseGkCount(team, phase) {
+    return phase === 'MAIN' ? team.mainGkCount : team.subGkCount;
+  }
+
+  getMissingPicks(team, phase) {
+    return Math.max(0, this.getPhaseTarget(phase) - this.getPhasePlayers(team, phase).length);
+  }
+
+  isPhaseComplete(phase) {
+    return this.teams.every((team) => (
+      this.getMissingPicks(team, phase) === 0
+      && this.getPhaseGkCount(team, phase) === 1
+    ));
+  }
+
+  calculateTurnPickTarget(config = this.getCurrentConfig(), team = this.getCurrentTeam()) {
+    if (!config || !team) return 0;
+    const missing = this.getMissingPicks(team, config.phase);
+    return config.isCompensate ? missing : Math.min(config.picksPerTurn, missing);
+  }
+
   getPicksNeededForCurrentTurn() {
-    const config = this.getCurrentConfig();
-    if (!config) return 0;
-    if (config.isCompensate) {
-      const team = this.getCurrentTeam();
-      return Math.max(0, 11 - team.startingXI.length);
-    }
-    return config.picksPerTurn;
+    return this.turnPickTarget || this.calculateTurnPickTarget();
   }
 
   startDraft(io) {
@@ -150,6 +179,8 @@ class DraftRoom {
     this.currentRoundIdx = 0;
     this.currentTeamTurnIdx = 0;
     this.picksInCurrentTurn = 0;
+    this.turnPickTarget = 0;
+    this.turnRoundPickOffset = 0;
     this.startTurnTimer(io);
   }
 
@@ -177,14 +208,19 @@ class DraftRoom {
     }
 
     const currentTeam = this.getCurrentTeam();
-    if (config.isCompensate && currentTeam.startingXI.length >= 11) {
-      console.log(`⏩ [Auto-Skip 8R] ${currentTeam.name} đã đủ 11 cầu thủ chính.`);
-      setTimeout(() => this.nextTurn(io), 500);
+    const missing = this.getMissingPicks(currentTeam, config.phase);
+    if (config.isCompensate && missing === 0) {
+      this.nextTurn(io);
       return;
     }
 
     if (!isResume) {
-      this.timeLeft = config.timeLimit;
+      this.picksInCurrentTurn = 0;
+      this.turnPickTarget = this.calculateTurnPickTarget(config, currentTeam);
+      this.turnRoundPickOffset = (currentTeam.roundPicks?.[config.label] || []).filter(Boolean).length;
+      this.timeLeft = config.isCompensate
+        ? Math.max(30, this.turnPickTarget * 30)
+        : config.timeLimit;
     }
 
     this.broadcastState(io);
@@ -236,10 +272,18 @@ class DraftRoom {
 
     const config = this.getCurrentConfig();
     const isGK = String(player.pos).toUpperCase() === 'GK';
+    const phasePlayers = this.getPhasePlayers(currentTeam, config.phase);
+    const phaseGkCount = this.getPhaseGkCount(currentTeam, config.phase);
+    const phaseTarget = this.getPhaseTarget(config.phase);
+    const slotsRemaining = phaseTarget - phasePlayers.length;
 
     if (config.phase === 'MAIN') {
       if (currentTeam.startingXI.length >= 11) {
         return { valid: false, error: 'Đội hình chính đã đủ 11 cầu thủ!' };
+      }
+
+      if (isGK && phaseGkCount >= 1) {
+        return { valid: false, error: 'Đội hình chính chỉ được có đúng 1 Thủ môn (GK)!' };
       }
 
       const salaryToAdd = parseInt(player.salary, 10) || 0;
@@ -251,25 +295,27 @@ class DraftRoom {
         };
       }
 
-      const slotsRemainingInMain = 11 - currentTeam.startingXI.length;
-      if (slotsRemainingInMain === 1 && currentTeam.gkCount === 0 && !isGK) {
+      if (slotsRemaining === 1 && phaseGkCount === 0 && !isGK) {
         return {
           valid: false,
-          error: 'Đội hình chính bắt buộc phải có ít nhất 1 Thủ môn (GK)!'
+          error: 'Lượt cuối đội hình chính bắt buộc phải chọn Thủ môn (GK)!'
         };
       }
     }
 
     if (config.phase === 'SUB') {
-      const totalCount = currentTeam.startingXI.length + currentTeam.subs.length;
-      if (totalCount >= 23) {
-        return { valid: false, error: 'Đội đã đủ danh sách tối đa 23 cầu thủ!' };
+      if (currentTeam.subs.length >= 12) {
+        return { valid: false, error: 'Danh sách dự bị đã đủ 12 cầu thủ!' };
       }
 
-      if (totalCount === 22 && currentTeam.gkCount < 2 && !isGK) {
+      if (isGK && phaseGkCount >= 1) {
+        return { valid: false, error: 'Danh sách dự bị chỉ được có đúng 1 Thủ môn (GK)!' };
+      }
+
+      if (slotsRemaining === 1 && phaseGkCount === 0 && !isGK) {
         return {
           valid: false,
-          error: 'Toàn đội 23 cầu thủ bắt buộc phải có tối thiểu 2 Thủ môn (GK)!'
+          error: 'Lượt cuối danh sách dự bị bắt buộc phải chọn Thủ môn (GK)!'
         };
       }
     }
@@ -294,13 +340,17 @@ class DraftRoom {
       season: player.season
     });
 
-    if (isGK) team.gkCount += 1;
+    if (isGK) {
+      team.gkCount += 1;
+      if (config.phase === 'MAIN') team.mainGkCount += 1;
+      else team.subGkCount += 1;
+    }
 
     const pickRecord = {
       ...player,
       roundLabel: config.label,
       roundNum: config.roundNum,
-      subSlotIndex: this.picksInCurrentTurn,
+      subSlotIndex: this.turnRoundPickOffset + this.picksInCurrentTurn,
       pickedByTeamId: team.id,
       pickedByTeamName: team.name,
       phase: config.phase,
@@ -315,7 +365,7 @@ class DraftRoom {
     }
 
     // Place pick firmly in the current round's exact sub-slot!
-    team.roundPicks[config.label][this.picksInCurrentTurn] = pickRecord;
+    team.roundPicks[config.label][pickRecord.subSlotIndex] = pickRecord;
 
     if (config.phase === 'MAIN') {
       team.startingXI.push(pickRecord);
@@ -332,7 +382,7 @@ class DraftRoom {
     });
 
     this.picksInCurrentTurn += 1;
-    const needed = this.getPicksNeededForCurrentTurn();
+    const needed = this.turnPickTarget;
 
     if (this.picksInCurrentTurn >= needed) {
       this.nextTurn(io);
@@ -345,11 +395,16 @@ class DraftRoom {
 
   nextTurn(io) {
     this.picksInCurrentTurn = 0;
+    this.turnPickTarget = 0;
+    this.turnRoundPickOffset = 0;
+    const config = this.getCurrentConfig();
     this.currentTeamTurnIdx += 1;
 
     if (this.currentTeamTurnIdx >= 4) {
       this.currentTeamTurnIdx = 0;
-      this.currentRoundIdx += 1;
+      if (!config?.isCompensate || this.isPhaseComplete(config.phase)) {
+        this.currentRoundIdx += 1;
+      }
 
       if (this.currentRoundIdx >= ROUNDS_CONFIG.length) {
         this.finishDraft(io);
@@ -361,12 +416,21 @@ class DraftRoom {
   }
 
   finishDraft(io) {
+    if (!this.isPhaseComplete('MAIN') || !this.isPhaseComplete('SUB')) {
+      const targetRoundIndex = this.isPhaseComplete('MAIN')
+        ? ROUNDS_CONFIG.findIndex((config) => config.phase === 'SUB' && config.isCompensate)
+        : ROUNDS_CONFIG.findIndex((config) => config.phase === 'MAIN' && config.isCompensate);
+      this.currentRoundIdx = targetRoundIndex;
+      this.currentTeamTurnIdx = 0;
+      this.startTurnTimer(io);
+      return;
+    }
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.status = 'completed';
     console.log('🎉 Phiên Draft đã hoàn tất!');
     this.broadcastState(io);
     io.to(this.roomId).emit('draft_completed', {
-      message: 'Draft đã hoàn tất toàn bộ vòng. Đội bỏ lỡ lượt có thể kết thúc với danh sách chưa đủ 23 cầu thủ.',
+      message: 'Draft hoàn tất: cả 4 đội đã đủ 11 chính, 12 dự bị và đúng 1 GK ở mỗi nhóm.',
       teams: this.teams
     });
   }
@@ -388,7 +452,13 @@ class DraftRoom {
       currentTeamTurnIdx: this.currentTeamTurnIdx,
       picksInCurrentTurn: this.picksInCurrentTurn,
       neededPicks,
+      turnPickTarget: this.turnPickTarget,
+      turnRoundPickOffset: this.turnRoundPickOffset,
       timeLeft: this.timeLeft,
+      phaseProgress: {
+        MAIN: this.teams.map((team) => ({ teamId: team.id, count: team.startingXI.length, gkCount: team.mainGkCount })),
+        SUB: this.teams.map((team) => ({ teamId: team.id, count: team.subs.length, gkCount: team.subGkCount }))
+      },
       teams: this.teams,
       pickedIds: Array.from(this.pickedPlayerIds),
       pickedIdentities: Array.from(this.pickedPlayerIdentities.entries()),

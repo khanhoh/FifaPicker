@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowRight, Eye, LogIn, Plus, Users } from 'lucide-react';
+import { ArrowRight, Eye, LogIn, Plus, RotateCcw, Users, X } from 'lucide-react';
 import { useDraft } from '../context/DraftContext';
 import { FCLogo, TeamLogo } from '../assets/teamLogos';
 import { TEAM_OPTIONS } from '../data/teamOptions';
 
 export default function RoomGateway() {
-  const { createRoom, joinRoom, watchRoom, errorMsg } = useDraft();
+  const { createRoom, joinRoom, watchRoom, resumeRoom, resumeSession, forgetResumeSession, errorMsg } = useDraft();
   const [mode, setMode] = useState('create');
   const [joinRole, setJoinRole] = useState('team');
   const [refereeName, setRefereeName] = useState('Trọng tài');
@@ -34,6 +34,18 @@ export default function RoomGateway() {
     }
   };
 
+  const handleResume = async () => {
+    setLoading(true);
+    setLocalError('');
+    try {
+      await resumeRoom();
+    } catch (error) {
+      setLocalError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050811] px-4 py-8 text-white">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(0,255,102,0.18),transparent_38%),radial-gradient(circle_at_10%_80%,rgba(14,165,233,0.1),transparent_30%)]" />
@@ -53,6 +65,39 @@ export default function RoomGateway() {
           </section>
 
           <section className="p-6 sm:p-8 md:p-10">
+            {resumeSession && (
+              <div className="mb-5 rounded-2xl border border-emerald-700/70 bg-emerald-950/35 p-3 shadow-[0_0_22px_rgba(0,255,102,0.1)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neon-green/50 bg-slate-950 text-neon-green">
+                    <RotateCcw className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-neon-green">Phiên có thể tiếp tục</div>
+                    <div className="truncate text-xs font-bold text-white">
+                      Room <span className="font-digital text-neon-green">{resumeSession.roomCode}</span>
+                      {' • '}{resumeSession.role === 'team' ? resumeSession.teamName || resumeSession.name : resumeSession.role === 'referee' ? 'Trọng tài' : 'Khán giả'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleResume}
+                    disabled={loading}
+                    className="rounded-xl bg-neon-green px-3 py-2 text-[10px] font-black text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
+                  >
+                    TIẾP TỤC
+                  </button>
+                  <button
+                    type="button"
+                    onClick={forgetResumeSession}
+                    className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-800 hover:text-white"
+                    title="Bỏ phiên đã lưu"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="mb-7 grid grid-cols-2 rounded-xl border border-slate-700 bg-slate-950/50 p-1">
               <button
                 type="button"

@@ -13,11 +13,11 @@ Hệ thống Webapp chọn cầu thủ (Draft Picker) theo thời gian thực ch
    - Tự động cộng điểm OVR bonus và hiển thị mức thẻ cộng tối đa (`+4` đến `+8`) dựa trên file dữ liệu `Workbook1.xlsx`.
    - Giới hạn tìm kiếm chỉ trong danh sách 53 mùa thẻ chính thức của giải đấu.
 3. **Cơ Chế Snake Draft & Kiểm Soát Luật Nghiêm Ngặt**:
-   - **ROUND 1 (1R - 8R)**: 11 cầu thủ chính, quỹ lương $\le 305$, bắt buộc có tối thiểu $\ge 1$ GK.
+   - **ROUND 1 (1R - 8R)**: 11 cầu thủ chính, quỹ lương $\le 305$, bắt buộc có đúng 1 GK.
      - 1R - 3R: Pick 1 cầu thủ / 30s.
      - 4R - 7R: Pick 2 cầu thủ / 60s.
-     - 8R: Pick bù (tự động skip nếu đội đã đủ 11 thẻ).
-   - **ROUND 2 (-1R - -5R)**: 12 cầu thủ dự bị $\rightarrow$ Tổng 23 cầu thủ, bắt buộc có $\ge 2$ GK.
+     - 8R: Pick bù đúng số còn thiếu, lặp đến khi cả 4 đội đủ 11 thẻ.
+   - **ROUND 2 (-1R - -6R)**: 12 cầu thủ dự bị $\rightarrow$ Tổng 23 cầu thủ, bắt buộc dự bị có đúng 1 GK; -6R bù đến khi đủ.
      - Pick lần lượt: 2 (60s) $\rightarrow 2$ (60s) $\rightarrow 3$ (90s) $\rightarrow 2$ (60s) $\rightarrow 3$ (90s).
 4. **Cơ Chế Pick Độc Quyền Cầu Thủ (Exclusive Pick)**:
    - Khi một đội đã chọn một cầu thủ (ví dụ: `L. Messi` mùa `26TS`), tất cả các mùa thẻ khác của cầu thủ này sẽ tự động bị khóa trên toàn hệ thống.
@@ -103,6 +103,10 @@ Mở 2 cửa sổ terminal riêng biệt:
 
 Truy cập ứng dụng tại: **[http://localhost:3000](http://localhost:3000)**
 
+### Xem nhanh giao diện không cần tạo Room
+
+Mở **[http://localhost:3000/smoke](http://localhost:3000/smoke)** để xem Lobby, Broadcast, Pick, Ban và Xếp đội hình bằng dữ liệu giả. Thanh Smoke Preview cho phép đổi màn hình, vai trò và đội; chế độ này không tạo Room, không mở Socket.io và không thay đổi dữ liệu phiên thật.
+
 ---
 
 ## 📁 Cấu Trúc Dự Án
@@ -125,6 +129,7 @@ FifaPicker/
         ├── App.jsx            # Điều hướng giữa Bảng Tổng Quan và Màn Hình Picker
         ├── context/
         │   └── DraftContext.jsx # Quản lý kết nối WebSocket và state người dùng
+        ├── smoke/                # Preview UI bằng fixture, không cần Room/Socket
         └── components/
             ├── Header.jsx     # Đồng hồ Neon, YOUR TURN, Round badge & Nút Trọng Tài
             ├── BroadcastBoard.jsx     # [Ảnh 1] Bảng tổng quan 4 đội và 13 round đấu

@@ -142,6 +142,23 @@ class RoomManager {
     };
   }
 
+  resumeRoom({ roomCode, token }) {
+    const room = this.getRoom(roomCode);
+    if (!room) return { valid: false, error: 'Không tìm thấy room.' };
+
+    const context = this.getAuthContext(token);
+    if (!context || context.room.code !== room.code) {
+      return { valid: false, error: 'Phiên cũ không còn hợp lệ cho room này.' };
+    }
+
+    room.lastActiveAt = Date.now();
+    return {
+      valid: true,
+      room: this.getPublicRoom(room),
+      session: this.getSessionPayload(token)
+    };
+  }
+
   getRoom(roomCode) {
     return this.rooms.get(normalizeRoomCode(roomCode)) || null;
   }
@@ -308,6 +325,7 @@ class RoomManager {
     const room = this.getRoom(roomCode);
     if (!room) return false;
     if (room.draftRoom.timerInterval) clearInterval(room.draftRoom.timerInterval);
+    room.banRoom.dispose();
     this.sessions.delete(room.referee.token);
     room.participants.forEach((participant) => this.sessions.delete(participant.token));
     room.spectators.forEach((spectator) => this.sessions.delete(spectator.token));

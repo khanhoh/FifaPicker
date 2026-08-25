@@ -3,14 +3,23 @@ import { io } from 'socket.io-client';
 
 const DraftContext = createContext(null);
 const SESSION_STORAGE_KEY = 'fifa_draft_room_session';
+const RESUME_STORAGE_KEY = 'fifa_draft_room_resume';
 
-function loadStoredSession() {
+function loadStoredValue(key) {
   try {
-    const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+    const saved = localStorage.getItem(key);
     return saved ? JSON.parse(saved) : null;
   } catch {
     return null;
   }
+}
+
+function loadStoredSession() {
+  return loadStoredValue(SESSION_STORAGE_KEY);
+}
+
+function loadStoredResumeSession() {
+  return loadStoredValue(RESUME_STORAGE_KEY) || loadStoredSession();
 }
 
 async function requestJson(url, options = {}) {
@@ -33,6 +42,7 @@ export function DraftProvider({ children }) {
   const errorTimerRef = useRef(null);
   const successTimerRef = useRef(null);
   const [session, setSession] = useState(loadStoredSession);
+  const [resumeSession, setResumeSession] = useState(loadStoredResumeSession);
   const [lobbyState, setLobbyState] = useState(null);
   const [draftState, setDraftState] = useState(null);
   const [banState, setBanState] = useState(null);
@@ -45,10 +55,17 @@ export function DraftProvider({ children }) {
     setSession(nextSession);
     if (nextSession) {
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+      localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(nextSession));
+      setResumeSession(nextSession);
       localStorage.removeItem('fifa_draft_user');
     } else {
       localStorage.removeItem(SESSION_STORAGE_KEY);
     }
+  };
+
+  const forgetResumeSession = () => {
+    localStorage.removeItem(RESUME_STORAGE_KEY);
+    setResumeSession(null);
   };
 
   const resetRoomState = () => {
@@ -137,6 +154,7 @@ export function DraftProvider({ children }) {
     socket.on('connect_error', (error) => {
       if (error.message === 'INVALID_ROOM_SESSION') {
         persistSession(null);
+        forgetResumeSession();
         resetRoomState();
         showError('Room không còn tồn tại hoặc phiên tham gia đã hết hạn.', 0, session.roomCode);
       } else {
@@ -148,6 +166,9 @@ export function DraftProvider({ children }) {
     socket.on('room_lobby_update', setLobbyState);
     socket.on('draft_state_update', setDraftState);
     socket.on('ban_state_update', setBanState);
+    socket.on('ban_timer_tick', ({ timeLeft, currentTurnTeamId }) => {
+      setBanState((previous) => previous ? { ...previous, timeLeft, currentTurnTeamId } : previous);
+    });
     socket.on('timer_tick', ({ timeLeft }) => {
       setDraftState((previous) => previous ? { ...previous, timeLeft } : previous);
     });
@@ -159,11 +180,13 @@ export function DraftProvider({ children }) {
     socket.on('draft_completed', ({ message }) => showSuccess(message, 0));
     socket.on('session_revoked', ({ message }) => {
       persistSession(null);
+      forgetResumeSession();
       resetRoomState();
       showError(message || 'Phiên tham gia room đã bị thu hồi.', 0, session.roomCode);
     });
     socket.on('session_replaced', ({ message }) => {
       persistSession(null);
+      forgetResumeSession();
       resetRoomState();
       showError(message || 'Phiên đã được mở trên thiết bị khác.', 0, session.roomCode);
     });
@@ -188,6 +211,9 @@ export function DraftProvider({ children }) {
   const joinRoom = async ({ roomCode, captainName }) => {
     clearNotices();
     const normalizedCode = String(roomCode || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+    if (resumeSession?.token && resumeSession.roomCode === normalizedCode) {
+      return resumeRoom({ roomCode: normalizedCode });
+    }
     const data = await requestJson(`/api/rooms/${normalizedCode}/join`, {
       method: 'POST',
       body: JSON.stringify({ captainName })
@@ -195,6 +221,24 @@ export function DraftProvider({ children }) {
     setLobbyState(data.room);
     persistSession(data.session);
     return data;
+  };
+
+  const resumeRoom = async ({ roomCode = resumeSession?.roomCode } = {}) => {
+    clearNotices();
+    const normalizedCode = String(roomCode || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+    if (!resumeSession?.token || !normalizedCode) throw new Error('Không có phiên room để tiếp tục.');
+    try {
+      const data = await requestJson(`/api/rooms/${normalizedCode}/resume`, {
+        method: 'POST',
+        body: JSON.stringify({ token: resumeSession.token })
+      });
+      setLobbyState(data.room);
+      persistSession(data.session);
+      return data;
+    } catch (error) {
+      forgetResumeSession();
+      throw error;
+    }
   };
 
   const watchRoom = async ({ roomCode, spectatorName }) => {
@@ -221,16 +265,20 @@ export function DraftProvider({ children }) {
   const clearLocalSession = () => {
     socketRef.current?.disconnect();
     persistSession(null);
+    forgetResumeSession();
     resetRoomState();
     clearNotices();
   };
 
-  const leaveRoom = () => {
-    if (session?.role === 'team' || session?.role === 'spectator') {
-      emit('leave_room');
-      return;
-    }
-    clearLocalSession();
+  const exitRoom = () => {
+    if (!session) return;
+    localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(session));
+    setResumeSession(session);
+    socketRef.current?.disconnect();
+    persistSession(null);
+    resetRoomState();
+    clearNotices();
+    setConnectionStatus('idle');
   };
 
   const currentUser = useMemo(() => session || {
@@ -241,6 +289,7 @@ export function DraftProvider({ children }) {
 
   const value = {
     session,
+    resumeSession,
     lobbyState,
     draftState,
     banState,
@@ -249,8 +298,11 @@ export function DraftProvider({ children }) {
     createRoom,
     joinRoom,
     watchRoom,
+    resumeRoom,
+    forgetResumeSession,
     clearLocalSession,
-    leaveRoom,
+    exitRoom,
+    leaveRoom: exitRoom,
     startDraft: () => emit('start_draft'),
     pauseDraft: () => emit('pause_draft'),
     resumeDraft: () => emit('resume_draft'),
@@ -261,11 +313,10 @@ export function DraftProvider({ children }) {
     destroyRoom: () => emit('destroy_room'),
     removePlayer: (playerId) => emit('remove_player', { playerId }),
     pickPlayer: (player) => emit('pick_player', { player }),
+    openBanStage: () => emit('open_ban_stage'),
     setupBanPhase: (payload) => emit('setup_ban_phase', payload),
     toggleBanPlayer: (player) => emit('toggle_ban_player', { player }),
-    lockTeamBans: () => emit('lock_team_bans'),
-    nextGameBan: () => emit('next_game_ban'),
-    resetBanPhase: () => emit('reset_ban_phase'),
+    restartBanSelection: () => emit('restart_ban_selection'),
     setLineupFormation: (formationId) => emit('set_lineup_formation', { formationId }),
     setLineupPlayer: (slotId, playerId) => emit('set_lineup_player', { slotId, playerId }),
     moveLineupPlayer: (sourceSlotId, targetSlotId) => emit('move_lineup_player', { sourceSlotId, targetSlotId }),
@@ -280,6 +331,12 @@ export function DraftProvider({ children }) {
       : ''
   };
 
+  return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
+}
+
+// Static provider used by /smoke. It deliberately skips every room/session
+// effect above, so previewing the UI never opens a socket or mutates a room.
+export function DraftPreviewProvider({ value, children }) {
   return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 
