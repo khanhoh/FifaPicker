@@ -17,16 +17,34 @@ const ROUNDS_CONFIG = [
   { roundNum: 13, label: '-5R', subLabel: '2.5', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'REVERSE' }
 ];
 
-// 4 Đội theo thứ tự 1-4 chính xác theo ảnh người dùng cung cấp:
+function getInitialRoundPicks() {
+  return {
+    '1R': [null],
+    '2R': [null],
+    '3R': [null],
+    '4R': [null, null],
+    '5R': [null, null],
+    '6R': [null, null],
+    '7R': [null, null],
+    '8R': [null, null, null],
+    '-1R': [null, null],
+    '-2R': [null, null],
+    '-3R': [null, null, null],
+    '-4R': [null, null],
+    '-5R': [null, null, null]
+  };
+}
+
+// 4 Đội theo thứ tự 1-4 chính xác:
 // 1: AMITA FCO (AMT)
 // 2: NK FC ONLINE (NK)
 // 3: FOR FUN BROTHER (FFB)
 // 4: TAG TEAM (TAG)
 const INITIAL_TEAMS = [
-  { id: 1, code: 'AMT', name: 'AMITA FCO',        logoUrl: '/logos/AMT.png', color: '#ffffff', socketId: null, startingXI: [], subs: [], totalSalaryMain: 0, gkCount: 0 },
-  { id: 2, code: 'NK',  name: 'NK FC ONLINE',     logoUrl: '/logos/NK.png',  color: '#ef4444', socketId: null, startingXI: [], subs: [], totalSalaryMain: 0, gkCount: 0 },
-  { id: 3, code: 'FFB', name: 'FOR FUN BROTHER',  logoUrl: '/logos/FFB.png', color: '#ea580c', socketId: null, startingXI: [], subs: [], totalSalaryMain: 0, gkCount: 0 },
-  { id: 4, code: 'TAG', name: 'TAG TEAM',        logoUrl: '/logos/TAG.png', color: '#f97316', socketId: null, startingXI: [], subs: [], totalSalaryMain: 0, gkCount: 0 }
+  { id: 1, code: 'AMT', name: 'AMITA FCO',        logoUrl: '/logos/AMT.png', color: '#ffffff', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 },
+  { id: 2, code: 'NK',  name: 'NK FC ONLINE',     logoUrl: '/logos/NK.png',  color: '#ef4444', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 },
+  { id: 3, code: 'FFB', name: 'FOR FUN BROTHER',  logoUrl: '/logos/FFB.png', color: '#ea580c', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 },
+  { id: 4, code: 'TAG', name: 'TAG TEAM',        logoUrl: '/logos/TAG.png', color: '#f97316', socketId: null, startingXI: [], subs: [], roundPicks: getInitialRoundPicks(), totalSalaryMain: 0, gkCount: 0 }
 ];
 
 function normalizePlayerIdentity(name) {
@@ -53,7 +71,14 @@ class DraftRoom {
     this.pickedPlayerIds = new Set();
     this.pickedPlayerIdentities = new Map();
     this.history = [];
-    this.teams = JSON.parse(JSON.stringify(INITIAL_TEAMS));
+    this.teams = INITIAL_TEAMS.map(t => ({
+      ...t,
+      startingXI: [],
+      subs: [],
+      roundPicks: getInitialRoundPicks(),
+      totalSalaryMain: 0,
+      gkCount: 0
+    }));
   }
 
   getTurnOrder() {
@@ -236,11 +261,23 @@ class DraftRoom {
     const pickRecord = {
       ...player,
       roundLabel: config.label,
+      roundNum: config.roundNum,
+      subSlotIndex: this.picksInCurrentTurn,
       pickedByTeamId: team.id,
       pickedByTeamName: team.name,
       phase: config.phase,
       timestamp: Date.now()
     };
+
+    if (!team.roundPicks) {
+      team.roundPicks = getInitialRoundPicks();
+    }
+    if (!team.roundPicks[config.label]) {
+      team.roundPicks[config.label] = [];
+    }
+
+    // Place pick firmly in the current round's exact sub-slot!
+    team.roundPicks[config.label][this.picksInCurrentTurn] = pickRecord;
 
     if (config.phase === 'MAIN') {
       team.startingXI.push(pickRecord);
@@ -250,43 +287,36 @@ class DraftRoom {
     }
 
     this.history.push(pickRecord);
-    this.picksInCurrentTurn += 1;
-
-    const neededPicks = this.getPicksNeededForCurrentTurn();
-    const isTurnCompleted = this.picksInCurrentTurn >= neededPicks || (config.phase === 'MAIN' && team.startingXI.length === 11);
 
     io.to(this.roomId).emit('player_picked_event', {
       pick: pickRecord,
-      team,
-      isTurnCompleted,
-      picksInCurrentTurn: this.picksInCurrentTurn,
-      neededPicks: neededPicks,
-      pickedPlayerIdentities: Array.from(this.pickedPlayerIdentities.entries())
+      team: { id: team.id, name: team.name, code: team.code }
     });
 
-    if (isTurnCompleted) {
+    this.picksInCurrentTurn += 1;
+    const needed = this.getPicksNeededForCurrentTurn();
+
+    if (this.picksInCurrentTurn >= needed) {
       this.nextTurn(io);
     } else {
       this.broadcastState(io);
     }
 
-    return { valid: true, pick: pickRecord, isTurnCompleted };
+    return { valid: true, pick: pickRecord };
   }
 
   nextTurn(io) {
     this.picksInCurrentTurn = 0;
-    const turnOrder = this.getTurnOrder();
-
     this.currentTeamTurnIdx += 1;
 
-    if (this.currentTeamTurnIdx >= turnOrder.length) {
-      this.currentRoundIdx += 1;
+    if (this.currentTeamTurnIdx >= 4) {
       this.currentTeamTurnIdx = 0;
-    }
+      this.currentRoundIdx += 1;
 
-    if (this.currentRoundIdx >= ROUNDS_CONFIG.length) {
-      this.finishDraft(io);
-      return;
+      if (this.currentRoundIdx >= ROUNDS_CONFIG.length) {
+        this.finishDraft(io);
+        return;
+      }
     }
 
     this.startTurnTimer(io);
@@ -295,35 +325,36 @@ class DraftRoom {
   finishDraft(io) {
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.status = 'completed';
-    console.log('🏆 Draft hoàn tất toàn bộ 13 Rounds!');
+    console.log('🎉 Phiên Draft đã hoàn tất!');
     this.broadcastState(io);
     io.to(this.roomId).emit('draft_completed', {
-      message: 'Draft hoàn tất toàn bộ 23 cầu thủ cho 4 đội!',
-      teams: this.teams
+      message: 'Phiên Draft đã kết thúc thành công!'
     });
   }
 
+  broadcastState(io) {
+    io.to(this.roomId).emit('draft_state_update', this.getState());
+  }
+
   getState() {
+    const currentConfig = this.getCurrentConfig();
+    const currentTeam = this.getCurrentTeam();
+    const neededPicks = this.getPicksNeededForCurrentTurn();
+
     return {
-      roomId: this.roomId,
       status: this.status,
+      currentRound: currentConfig,
+      currentTeam,
       currentRoundIdx: this.currentRoundIdx,
-      currentRound: this.getCurrentConfig(),
-      allRounds: ROUNDS_CONFIG,
       currentTeamTurnIdx: this.currentTeamTurnIdx,
-      currentTeam: this.getCurrentTeam(),
       picksInCurrentTurn: this.picksInCurrentTurn,
-      neededPicks: this.getPicksNeededForCurrentTurn(),
+      neededPicks,
       timeLeft: this.timeLeft,
       teams: this.teams,
       pickedIds: Array.from(this.pickedPlayerIds),
       pickedIdentities: Array.from(this.pickedPlayerIdentities.entries()),
       history: this.history
     };
-  }
-
-  broadcastState(io) {
-    io.to(this.roomId).emit('draft_state_update', this.getState());
   }
 }
 

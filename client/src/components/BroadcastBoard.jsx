@@ -22,22 +22,22 @@ const POS_COLORS = {
 
 // 8R đặt 3 ô theo yêu cầu
 const MAIN_ROUND_SLOTS = [
-  { label: '1R', count: 1, startIndex: 0 },
-  { label: '2R', count: 1, startIndex: 1 },
-  { label: '3R', count: 1, startIndex: 2 },
-  { label: '4R', count: 2, startIndex: 3 },
-  { label: '5R', count: 2, startIndex: 5 },
-  { label: '6R', count: 2, startIndex: 7 },
-  { label: '7R', count: 2, startIndex: 9 },
-  { label: '8R', count: 3, startIndex: 10, isCompensate: true }
+  { label: '1R', count: 1 },
+  { label: '2R', count: 1 },
+  { label: '3R', count: 1 },
+  { label: '4R', count: 2 },
+  { label: '5R', count: 2 },
+  { label: '6R', count: 2 },
+  { label: '7R', count: 2 },
+  { label: '8R', count: 3, isCompensate: true }
 ];
 
 const SUB_ROUND_SLOTS = [
-  { label: '-1R', count: 2, startIndex: 0 },
-  { label: '-2R', count: 2, startIndex: 2 },
-  { label: '-3R', count: 3, startIndex: 4 },
-  { label: '-4R', count: 2, startIndex: 7 },
-  { label: '-5R', count: 3, startIndex: 9 }
+  { label: '-1R', count: 2 },
+  { label: '-2R', count: 2 },
+  { label: '-3R', count: 3 },
+  { label: '-4R', count: 2 },
+  { label: '-5R', count: 3 }
 ];
 
 export default function BroadcastBoard() {
@@ -176,15 +176,14 @@ export default function BroadcastBoard() {
                   )}
                 </div>
 
-                {/* 4 Team Cells with multi-slot stacking */}
+                {/* 4 Team Cells with multi-slot stacking: Read strictly from roundPicks */}
                 {teams.map((t) => {
                   const isTeamActive = currentTeam && currentTeam.id === t.id && isCurrentRow && draftState?.status === 'drafting';
 
                   return (
                     <div key={t.id} className="flex flex-col gap-1.5">
                       {Array.from({ length: slotInfo.count }).map((_, subIdx) => {
-                        const playerIndex = slotInfo.startIndex + subIdx;
-                        const player = t.startingXI[playerIndex];
+                        const player = t.roundPicks?.[slotInfo.label]?.[subIdx] || null;
                         const isActiveSlot = isTeamActive && !player && subIdx === picksInCurrentTurn;
 
                         return (
@@ -205,7 +204,7 @@ export default function BroadcastBoard() {
             DỰ BỊ (SUBSTITUTES - TỐI ĐA 23 CẦU THỦ)
           </div>
 
-          {/* Sub Squad Rows (-1R to -5R) */}
+          {/* Sub Squad Rows (-1R to -5R): Read strictly from roundPicks */}
           {SUB_ROUND_SLOTS.map((slotInfo) => {
             const isCurrentSubRow = currentRound?.label === slotInfo.label;
 
@@ -232,15 +231,14 @@ export default function BroadcastBoard() {
                   </span>
                 </div>
 
-                {/* 4 Team Cells for Sub Rounds */}
+                {/* 4 Team Cells for Sub Rounds: Read strictly from roundPicks */}
                 {teams.map((t) => {
                   const isTeamActive = currentTeam && currentTeam.id === t.id && isCurrentSubRow && draftState?.status === 'drafting';
 
                   return (
                     <div key={t.id} className="flex flex-col gap-1.5">
                       {Array.from({ length: slotInfo.count }).map((_, subIdx) => {
-                        const subPlayerIndex = slotInfo.startIndex + subIdx;
-                        const subPlayer = t.subs[subPlayerIndex];
+                        const subPlayer = t.roundPicks?.[slotInfo.label]?.[subIdx] || null;
                         const isActiveSlot = isTeamActive && !subPlayer && subIdx === picksInCurrentTurn;
 
                         return (
@@ -302,25 +300,28 @@ export default function BroadcastBoard() {
                   )}
                 </div>
 
-                {/* Progress bar */}
-                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                {/* Main Progress Bar (Max 305) */}
+                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      t.totalSalaryMain > 305 ? 'bg-red-500' : 'bg-gradient-to-r from-teal-500 to-neon-green'
+                      t.totalSalaryMain > 305 ? 'bg-red-500' : 'bg-neon-green'
                     }`}
                     style={{ width: `${Math.min(100, (t.totalSalaryMain / 305) * 100)}%` }}
                   />
                 </div>
 
-                <div className="flex justify-between items-center text-[11px] text-slate-300">
-                  <span>Cầu thủ: <strong className="text-white font-bold">{totalPlayers}/23</strong></span>
-                  <span>GK: <strong className={t.gkCount >= 2 ? 'text-neon-green font-bold' : t.gkCount === 1 ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>{t.gkCount}/2</strong></span>
+                {/* Sub Stats: Main / Subs / GK */}
+                <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+                  <span>Chính: <strong className="text-white">{t.startingXI.length}/11</strong></span>
+                  <span>Dự bị: <strong className="text-white">{t.subs.length}/12</strong></span>
+                  <span>GK: <strong className={t.gkCount >= 2 ? 'text-neon-green' : 'text-amber-400'}>{t.gkCount}/2</strong></span>
                 </div>
               </div>
 
-              {/* Bottom Yellow Banner */}
-              <div className="bg-[#fbbf24] text-slate-950 py-1.5 px-3 text-center text-xs font-black tracking-widest uppercase shadow-md">
-                {t.name}
+              {/* Bottom Yellow Banner: Team Code + Total Players / 23 (Exact match to Image 1) */}
+              <div className="bg-[#fbbf24] text-slate-950 font-black text-xs py-1.5 px-3 flex items-center justify-between tracking-wider shadow-inner">
+                <span className="uppercase">{t.code}</span>
+                <span>{totalPlayers} / 23 CẦU THỦ</span>
               </div>
             </div>
           );

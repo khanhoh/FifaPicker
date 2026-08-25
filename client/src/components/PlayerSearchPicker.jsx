@@ -479,7 +479,7 @@ export default function PlayerSearchPicker() {
                       {selectedPlayer.name}
                     </div>
                     <div className="text-xs text-slate-400 font-medium mt-1 flex items-center gap-2">
-                      <span>Mùa: <strong className="text-neon-cyan">{selectedPlayer.seasonName}</strong> ({selectedPlayer.season.toUpperCase()})</span>
+                      <span>Mùa: <strong className="text-neon-cyan"></strong> {selectedPlayer.season.toUpperCase()}</span>
                       {selectedPlayer.crestUrl && (
                         <img src={selectedPlayer.crestUrl} alt="crest" className="h-4 object-contain inline" />
                       )}
