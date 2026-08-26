@@ -105,7 +105,22 @@ Truy cập ứng dụng tại: **[http://localhost:3000](http://localhost:3000)*
 
 ### Xem nhanh giao diện không cần tạo Room
 
-Mở **[http://localhost:3000/smoke](http://localhost:3000/smoke)** để xem Lobby, Broadcast, Pick, Ban và Xếp đội hình bằng dữ liệu giả. Thanh Smoke Preview cho phép đổi màn hình, vai trò và đội; chế độ này không tạo Room, không mở Socket.io và không thay đổi dữ liệu phiên thật.
+Mở **[http://localhost:3000/smoke](http://localhost:3000/smoke)** để xem Lobby, modal chờ bắt đầu, Broadcast, Pick, modal lỗi luật Pick, Ban và Xếp đội hình bằng dữ liệu giả. Thanh Smoke Preview cho phép đổi màn hình, vai trò, đội và case lỗi; chế độ này không tạo Room, không mở Socket.io và không thay đổi dữ liệu phiên thật. Trạng thái có thể chia sẻ bằng query string, ví dụ `/smoke?view=ready&role=team&team=3` hoặc `/smoke?view=pick-error&role=team&team=1&error=salary`.
+
+Dropdown **Test case** trên thanh Smoke Preview có sẵn các tình huống review nhanh:
+
+- `D01`: Trọng tài xem modal xác nhận và bấm bắt đầu đếm ngược.
+- `D02`: Captain xem modal chờ với đúng tên đội và slot pick.
+- `D03`: Khán giả xem modal chờ Trọng tài.
+- `D04`: mở modal lỗi luật Pick và đổi giữa các case lương/GK.
+- `D05`: kiểm tra tên người chơi tương ứng tại cột và thẻ tóm tắt của bảng Draft.
+- `D06`: kiểm tra `-5R` bắt đầu ở Team 1 và đi theo chiều `1 → 2 → 3 → 4`.
+- `P01`: xác nhận trang Pick không còn Team Color/chỉ số ẩn vàng; chọn GK, nhập Max Salary `6` và Search để kiểm tra kết quả.
+- `B01`: kiểm tra tên người chơi hiển thị cạnh tên đội tại trang Ban.
+- `L01`: Trọng tài xem hai lineup chưa khóa và thử **Kết thúc lineup** để quay lại chọn cặp đấu.
+- `L02`: Captain FFB nằm ngoài cặp AMT–NK xem hai lineup ở chế độ read-only.
+- `L03`: Khán giả xem hai lineup ở chế độ read-only.
+- `L04`: Trọng tài xem trạng thái hai lineup đã khóa và nút Ban lại.
 
 ---
 

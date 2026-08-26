@@ -2,10 +2,10 @@ import { FORMATIONS, getFormationSlots } from '../data/formations';
 import smokeRosterSnapshot from './smokeRosters.generated.json';
 
 const TEAM_DEFINITIONS = [
-  { id: 1, code: 'AMT', name: 'AMITA FCO', logoUrl: '/logos/AMT.png', color: '#ffffff' },
-  { id: 2, code: 'NK', name: 'NK FC ONLINE', logoUrl: '/logos/NK.png', color: '#ef4444' },
-  { id: 3, code: 'FFB', name: 'FOR FUN BROTHER', logoUrl: '/logos/FFB.png', color: '#ea580c' },
-  { id: 4, code: 'TAG', name: 'TA Global', logoUrl: '/logos/TAG.png', color: '#f97316' }
+  { id: 1, code: 'AMT', name: 'AMITA FCO', captainName: 'Nguyễn Hoàng Minh Khôi', logoUrl: '/logos/AMT.png', color: '#ffffff' },
+  { id: 2, code: 'NK', name: 'NK FC ONLINE', captainName: 'Trần Quốc Nam', logoUrl: '/logos/NK.png', color: '#ef4444' },
+  { id: 3, code: 'FFB', name: 'FOR FUN BROTHER', captainName: 'Phạm Minh Bảo', logoUrl: '/logos/FFB.png', color: '#ea580c' },
+  { id: 4, code: 'TAG', name: 'TA Global', captainName: 'Lê Anh Tuấn', logoUrl: '/logos/TAG.png', color: '#f97316' }
 ];
 
 function emptyRoundPicks() {
@@ -39,7 +39,7 @@ function createTeam(definition) {
   const players = [...startingXI, ...subs];
   return {
     ...definition,
-    captainName: `${definition.code} Captain`,
+    captainName: definition.captainName,
     occupied: true,
     connected: true,
     startingXI,
@@ -99,7 +99,7 @@ export function createSmokeLobby(status = 'waiting') {
   };
 }
 
-export function createSmokeDraftState(completed = false) {
+export function createSmokeDraftState(completed = false, status = completed ? 'completed' : 'drafting') {
   const currentRound = completed
     ? null
     : { roundNum: 4, label: '4R', phase: 'MAIN', picksPerTurn: 2, timeLimit: 60, direction: 'REVERSE' };
@@ -111,7 +111,7 @@ export function createSmokeDraftState(completed = false) {
     ])
   ));
   return {
-    status: completed ? 'completed' : 'drafting',
+    status,
     currentRound,
     currentTeam: completed ? null : SMOKE_TEAMS[0],
     currentRoundIdx: completed ? 14 : 3,
@@ -132,7 +132,7 @@ export function createSmokeDraftState(completed = false) {
   };
 }
 
-function createLineup(team, bannedPlayers, playerCount = 7) {
+function createLineup(team, bannedPlayers, playerCount = 7, locked = false) {
   const formation = '4231';
   const slots = Object.fromEntries(getFormationSlots(formation).map(slot => [slot.id, null]));
   const bannedIds = new Set(bannedPlayers.map(player => String(player.id)));
@@ -149,7 +149,7 @@ function createLineup(team, bannedPlayers, playerCount = 7) {
   return {
     formation,
     slots,
-    locked: false,
+    locked,
     salary: selected.reduce((sum, player) => sum + player.salary, 0),
     playerCount: selected.length
   };
@@ -165,15 +165,16 @@ export function createSmokeBanState(stage = 'banning', teamAId = 1, teamBId = 2)
   const teamABans = [teamB.startingXI[8], teamB.startingXI[9], teamB.startingXI[6], teamB.startingXI[7], teamB.startingXI[2]];
   const teamBBans = [teamA.startingXI[8], teamA.startingXI[9], teamA.startingXI[6], teamA.startingXI[7], teamA.startingXI[2]];
   const isSelecting = stage === 'selecting';
-  const isLineup = stage === 'lineup';
+  const isLineup = ['lineup', 'lineup_complete'].includes(stage);
+  const lineupsComplete = stage === 'lineup_complete';
   const currentBans = isSelecting
     ? { teamA: [], teamB: [] }
     : isLineup
       ? { teamA: teamABans, teamB: teamBBans }
       : { teamA: teamABans.slice(0, 2), teamB: teamBBans.slice(0, 1) };
   const lineups = {
-    teamA: createLineup(teamA, currentBans.teamB),
-    teamB: createLineup(teamB, currentBans.teamA)
+    teamA: createLineup(teamA, currentBans.teamB, lineupsComplete ? 11 : 7, lineupsComplete),
+    teamB: createLineup(teamB, currentBans.teamA, lineupsComplete ? 11 : 7, lineupsComplete)
   };
   return {
     status: stage,
@@ -192,6 +193,6 @@ export function createSmokeBanState(stage = 'banning', teamAId = 1, teamBId = 2)
     lineups,
     lineupSalaryCap: 305,
     formations: Object.keys(FORMATIONS),
-    allLineupsLocked: false
+    allLineupsLocked: lineupsComplete
   };
 }
