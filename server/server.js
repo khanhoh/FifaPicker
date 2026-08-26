@@ -385,6 +385,22 @@ io.on('connection', (socket) => {
     broadcastBanState(context.room);
   });
 
+  socket.on('request_lineup_end', () => {
+    const context = requireRole(socket, 'team', 'Chỉ Captain mới có thể xin kết thúc lineup!');
+    if (!context) return;
+    const result = context.room.banRoom.requestLineupEnd(context.teamId);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
+  socket.on('resolve_lineup_end', ({ teamId, action } = {}) => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền xử lý yêu cầu kết thúc lineup!');
+    if (!context) return;
+    const result = context.room.banRoom.resolveLineupEndRequest(teamId, action);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
+    else broadcastBanState(context.room);
+  });
+
   socket.on('set_lineup_formation', ({ formationId } = {}) => {
     const context = requireRole(socket, 'team', 'Chỉ Captain mới có quyền đổi sơ đồ!');
     if (!context) return;

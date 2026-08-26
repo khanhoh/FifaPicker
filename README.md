@@ -121,6 +121,10 @@ Dropdown **Test case** trên thanh Smoke Preview có sẵn các tình huống re
 - `L02`: Captain FFB nằm ngoài cặp AMT–NK xem hai lineup ở chế độ read-only.
 - `L03`: Khán giả xem hai lineup ở chế độ read-only.
 - `L04`: Trọng tài xem trạng thái hai lineup đã khóa và nút Ban lại.
+- `L05`: Captain vừa khóa đội hình được chuyển sang xem hai lineup, không thể sửa đội mình.
+- `L06`: Captain xin End lineup chuyển sang chế độ chờ quyết định của Trọng tài.
+- `L07`: Trọng tài nhận yêu cầu End và chọn cho tiếp tục hoặc xếp lại từ đầu; vẫn có thể Ban lại/Restart Draft.
+- `L08`: Đối thủ của đội xin End vẫn xếp đội hình bình thường trong lúc chờ Trọng tài.
 
 ---
 

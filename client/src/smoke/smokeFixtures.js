@@ -132,7 +132,7 @@ export function createSmokeDraftState(completed = false, status = completed ? 'c
   };
 }
 
-function createLineup(team, bannedPlayers, playerCount = 7, locked = false) {
+function createLineup(team, bannedPlayers, playerCount = 7, locked = false, ended = false) {
   const formation = '4231';
   const slots = Object.fromEntries(getFormationSlots(formation).map(slot => [slot.id, null]));
   const bannedIds = new Set(bannedPlayers.map(player => String(player.id)));
@@ -150,6 +150,7 @@ function createLineup(team, bannedPlayers, playerCount = 7, locked = false) {
     formation,
     slots,
     locked,
+    ended,
     salary: selected.reduce((sum, player) => sum + player.salary, 0),
     playerCount: selected.length
   };
@@ -165,19 +166,34 @@ export function createSmokeBanState(stage = 'banning', teamAId = 1, teamBId = 2)
   const teamABans = [teamB.startingXI[8], teamB.startingXI[9], teamB.startingXI[6], teamB.startingXI[7], teamB.startingXI[2]];
   const teamBBans = [teamA.startingXI[8], teamA.startingXI[9], teamA.startingXI[6], teamA.startingXI[7], teamA.startingXI[2]];
   const isSelecting = stage === 'selecting';
-  const isLineup = ['lineup', 'lineup_complete'].includes(stage);
+  const isLineup = ['lineup', 'lineup_complete', 'lineup_team_a_locked', 'lineup_end_pending'].includes(stage);
   const lineupsComplete = stage === 'lineup_complete';
+  const teamALocked = stage === 'lineup_team_a_locked';
+  const teamAEnded = stage === 'lineup_end_pending';
   const currentBans = isSelecting
     ? { teamA: [], teamB: [] }
     : isLineup
       ? { teamA: teamABans, teamB: teamBBans }
       : { teamA: teamABans.slice(0, 2), teamB: teamBBans.slice(0, 1) };
   const lineups = {
-    teamA: createLineup(teamA, currentBans.teamB, lineupsComplete ? 11 : 7, lineupsComplete),
+    teamA: createLineup(teamA, currentBans.teamB, lineupsComplete || teamALocked ? 11 : 7, lineupsComplete || teamALocked, teamAEnded),
     teamB: createLineup(teamB, currentBans.teamA, lineupsComplete ? 11 : 7, lineupsComplete)
   };
+  const lineupEndRequests = {
+    teamA: teamAEnded
+      ? {
+          teamKey: 'teamA',
+          teamId: teamA.id,
+          teamName: teamA.name,
+          teamCode: teamA.code,
+          captainName: teamA.captainName,
+          requestedAt: Date.now()
+        }
+      : null,
+    teamB: null
+  };
   return {
-    status: stage,
+    status: ['lineup_team_a_locked', 'lineup_end_pending'].includes(stage) ? 'lineup' : stage,
     teamAId: isSelecting ? null : teamA.id,
     teamBId: isSelecting ? null : teamB.id,
     teamA,
@@ -193,6 +209,7 @@ export function createSmokeBanState(stage = 'banning', teamAId = 1, teamBId = 2)
     lineups,
     lineupSalaryCap: 305,
     formations: Object.keys(FORMATIONS),
+    lineupEndRequests,
     allLineupsLocked: lineupsComplete
   };
 }

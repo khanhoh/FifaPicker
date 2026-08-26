@@ -27,6 +27,8 @@ const SCREENS = [
   { value: 'ban-select', label: 'Chọn cặp đấu Ban' },
   { value: 'ban', label: 'Ban cầu thủ' },
   { value: 'lineup', label: 'Lineup · chưa khóa' },
+  { value: 'lineup-captain-locked', label: 'Lineup · Captain đã khóa' },
+  { value: 'lineup-end-pending', label: 'Lineup · chờ xử lý End' },
   { value: 'lineup-complete', label: 'Lineup · đã khóa' }
 ];
 
@@ -48,7 +50,11 @@ const TEST_CASES = [
   { value: 'lineup-ref-force', label: 'L01 · Ref end lineup sớm', screen: 'lineup', role: 'referee', teamId: 1 },
   { value: 'lineup-outside', label: 'L02 · Đội ngoài cặp read-only', screen: 'lineup', role: 'team', teamId: 3 },
   { value: 'lineup-spectator', label: 'L03 · Khán giả read-only', screen: 'lineup', role: 'spectator', teamId: 1 },
-  { value: 'lineup-complete', label: 'L04 · Hai lineup đã khóa', screen: 'lineup-complete', role: 'referee', teamId: 1 }
+  { value: 'lineup-complete', label: 'L04 · Hai lineup đã khóa', screen: 'lineup-complete', role: 'referee', teamId: 1 },
+  { value: 'lineup-captain-locked', label: 'L05 · Captain khóa → xem đối thủ', screen: 'lineup-captain-locked', role: 'team', teamId: 1 },
+  { value: 'lineup-end-captain', label: 'L06 · Captain xin End → chờ', screen: 'lineup-end-pending', role: 'team', teamId: 1 },
+  { value: 'lineup-end-referee', label: 'L07 · Ref xử lý yêu cầu End', screen: 'lineup-end-pending', role: 'referee', teamId: 1 },
+  { value: 'lineup-end-opponent', label: 'L08 · Đối thủ vẫn tiếp tục xếp', screen: 'lineup-end-pending', role: 'team', teamId: 2 }
 ];
 
 const PICK_ERROR_CASES = [
@@ -76,6 +82,8 @@ function readInitialParams() {
 function createBanStateForScreen(screen, pair = { teamAId: 1, teamBId: 2 }) {
   if (screen === 'ban-select') return createSmokeBanState('selecting', pair.teamAId, pair.teamBId);
   if (screen === 'lineup') return createSmokeBanState('lineup', pair.teamAId, pair.teamBId);
+  if (screen === 'lineup-captain-locked') return createSmokeBanState('lineup_team_a_locked', pair.teamAId, pair.teamBId);
+  if (screen === 'lineup-end-pending') return createSmokeBanState('lineup_end_pending', pair.teamAId, pair.teamBId);
   if (screen === 'lineup-complete') return createSmokeBanState('lineup_complete', pair.teamAId, pair.teamBId);
   if (screen === 'ban') return createSmokeBanState('banning', pair.teamAId, pair.teamBId);
   return { status: 'idle' };
@@ -218,7 +226,7 @@ export default function SmokeApp() {
   const [banPair, setBanPair] = useState({ teamAId: 1, teamBId: 2 });
   const [banState, setBanState] = useState(() => createBanStateForScreen(initial.screen, { teamAId: 1, teamBId: 2 }));
 
-  const completedDraft = ['ban-select', 'ban', 'lineup', 'lineup-complete'].includes(screen);
+  const completedDraft = ['ban-select', 'ban', 'lineup', 'lineup-captain-locked', 'lineup-end-pending', 'lineup-complete'].includes(screen);
   const session = useMemo(() => createSmokeSession(role, teamId), [role, teamId]);
   const lobbyStatus = screen === 'lobby' ? 'waiting' : screen === 'ready' ? 'ready' : completedDraft ? 'completed' : 'drafting';
   const lobbyState = useMemo(() => createSmokeLobby(lobbyStatus), [lobbyStatus]);
@@ -276,10 +284,49 @@ export default function SmokeApp() {
     },
     toggleBanPlayer: () => {},
     restartBanSelection: () => setScreen('ban-select'),
+    requestLineupEnd: () => setBanState(current => {
+      const teamKey = getSmokeTeamKey(current, teamId);
+      const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
+      const team = teamKey === 'teamA' ? current.teamA : teamKey === 'teamB' ? current.teamB : null;
+      if (!currentLineup || !team || currentLineup.locked || currentLineup.ended) return current;
+      return {
+        ...current,
+        lineups: { ...current.lineups, [teamKey]: { ...currentLineup, ended: true } },
+        lineupEndRequests: {
+          ...(current.lineupEndRequests || {}),
+          [teamKey]: {
+            teamKey,
+            teamId: team.id,
+            teamName: team.name,
+            teamCode: team.code,
+            captainName: team.captainName,
+            requestedAt: Date.now()
+          }
+        }
+      };
+    }),
+    resolveLineupEnd: (requestedTeamId, action) => setBanState(current => {
+      const teamKey = getSmokeTeamKey(current, requestedTeamId);
+      const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
+      if (!currentLineup || !current.lineupEndRequests?.[teamKey]) return current;
+      const nextLineup = action === 'reset'
+        ? withLineupStats({
+            ...currentLineup,
+            slots: Object.fromEntries(getFormationSlots(currentLineup.formation).map(slot => [slot.id, null])),
+            locked: false,
+            ended: false
+          })
+        : { ...currentLineup, ended: false };
+      return {
+        ...current,
+        lineups: { ...current.lineups, [teamKey]: nextLineup },
+        lineupEndRequests: { ...current.lineupEndRequests, [teamKey]: null }
+      };
+    }),
     setLineupFormation: (formationId) => setBanState(current => {
       const teamKey = getSmokeTeamKey(current, teamId);
       const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
-      if (!currentLineup || currentLineup.locked) return current;
+      if (!currentLineup || currentLineup.locked || currentLineup.ended) return current;
 
       const selectedPlayers = Object.values(currentLineup.slots || {}).filter(Boolean);
       const nextSlots = Object.fromEntries(getFormationSlots(formationId).map(slot => [slot.id, null]));
@@ -304,7 +351,7 @@ export default function SmokeApp() {
       const teamKey = getSmokeTeamKey(current, teamId);
       const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
       const team = teamKey === 'teamA' ? current.teamA : teamKey === 'teamB' ? current.teamB : null;
-      if (!currentLineup || !team || currentLineup.locked) return current;
+      if (!currentLineup || !team || currentLineup.locked || currentLineup.ended) return current;
       const roster = [...(team.startingXI || []), ...(team.subs || [])];
       const player = playerId == null ? null : roster.find(item => String(item.id) === String(playerId));
       if (playerId != null && !player) return current;
@@ -323,7 +370,7 @@ export default function SmokeApp() {
     moveLineupPlayer: (sourceSlotId, targetSlotId) => setBanState(current => {
       const teamKey = getSmokeTeamKey(current, teamId);
       const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
-      if (!currentLineup || currentLineup.locked || !currentLineup.slots?.[sourceSlotId]) return current;
+      if (!currentLineup || currentLineup.locked || currentLineup.ended || !currentLineup.slots?.[sourceSlotId]) return current;
       const nextSlots = {
         ...currentLineup.slots,
         [sourceSlotId]: currentLineup.slots[targetSlotId] || null,
@@ -337,7 +384,7 @@ export default function SmokeApp() {
     clearLineup: () => setBanState(current => {
       const teamKey = getSmokeTeamKey(current, teamId);
       const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
-      if (!currentLineup || currentLineup.locked) return current;
+      if (!currentLineup || currentLineup.locked || currentLineup.ended) return current;
       const slots = Object.fromEntries(getFormationSlots(currentLineup.formation).map(slot => [slot.id, null]));
       return {
         ...current,
@@ -347,7 +394,7 @@ export default function SmokeApp() {
     lockLineup: () => setBanState(current => {
       const teamKey = getSmokeTeamKey(current, teamId);
       const currentLineup = teamKey ? current.lineups?.[teamKey] : null;
-      if (!currentLineup || currentLineup.playerCount !== 11) return current;
+      if (!currentLineup || currentLineup.ended || currentLineup.playerCount !== 11) return current;
       return {
         ...current,
         lineups: { ...current.lineups, [teamKey]: { ...currentLineup, locked: true } }
@@ -374,7 +421,7 @@ export default function SmokeApp() {
     ? 'broadcast'
     : ['picker', 'pick-error'].includes(screen) ? 'picker' : 'ban';
   const setCurrentView = value => {
-    if (value === 'ban') setScreen(['lineup', 'lineup-complete'].includes(screen) ? screen : 'ban');
+    if (value === 'ban') setScreen(['lineup', 'lineup-captain-locked', 'lineup-end-pending', 'lineup-complete'].includes(screen) ? screen : 'ban');
     else setScreen(value);
   };
 

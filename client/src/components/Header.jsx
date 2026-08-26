@@ -115,7 +115,7 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
             }`}
           >
             {isMyTurn ? (
-              <span>⚡ YOUR TURN!</span>
+              <span>YOUR TURN!</span>
             ) : (
               <span className="flex items-center gap-1.5">
                 {currentTeam && <TeamLogo code={currentTeam.code} name={currentTeam.name} color={currentTeam.color} logoUrl={currentTeam.logoUrl} className="w-4 h-4" />}

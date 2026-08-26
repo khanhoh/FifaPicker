@@ -330,6 +330,8 @@ export function DraftProvider({ children }) {
     setupBanPhase: (payload) => emit('setup_ban_phase', payload),
     toggleBanPlayer: (player) => emit('toggle_ban_player', { player }),
     restartBanSelection: () => emit('restart_ban_selection'),
+    requestLineupEnd: () => emit('request_lineup_end'),
+    resolveLineupEnd: (teamId, action) => emit('resolve_lineup_end', { teamId, action }),
     setLineupFormation: (formationId) => emit('set_lineup_formation', { formationId }),
     setLineupPlayer: (slotId, playerId) => emit('set_lineup_player', { slotId, playerId }),
     moveLineupPlayer: (sourceSlotId, targetSlotId) => emit('move_lineup_player', { sourceSlotId, targetSlotId }),

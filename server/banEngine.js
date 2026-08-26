@@ -61,7 +61,8 @@ class MatchBanRoom {
     return {
       formation: safeFormation,
       slots: Object.fromEntries(getFormationSlots(safeFormation).map(slot => [slot.id, null])),
-      locked: false
+      locked: false,
+      ended: false
     };
   }
 
@@ -70,6 +71,7 @@ class MatchBanRoom {
       teamA: this.createEmptyLineup(),
       teamB: this.createEmptyLineup()
     };
+    this.lineupEndRequests = { teamA: null, teamB: null };
   }
 
   reset() {
@@ -269,6 +271,7 @@ class MatchBanRoom {
 
     const current = this.lineups[teamKey];
     if (current.locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
+    if (current.ended) return { valid: false, error: 'Đội đã xin kết thúc lineup và đang chờ Trọng tài xử lý!' };
 
     const selectedPlayers = Object.values(current.slots).filter(Boolean);
     const next = this.createEmptyLineup(formationId);
@@ -293,6 +296,7 @@ class MatchBanRoom {
 
     const lineup = this.lineups[teamKey];
     if (lineup.locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
+    if (lineup.ended) return { valid: false, error: 'Đội đã xin kết thúc lineup và đang chờ Trọng tài xử lý!' };
     const slot = getFormationSlots(lineup.formation).find(item => item.id === slotId);
     if (!slot) return { valid: false, error: 'Vị trí đội hình không hợp lệ!' };
 
@@ -334,6 +338,7 @@ class MatchBanRoom {
 
     const lineup = this.lineups[teamKey];
     if (lineup.locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
+    if (lineup.ended) return { valid: false, error: 'Đội đã xin kết thúc lineup và đang chờ Trọng tài xử lý!' };
     if (sourceSlotId === targetSlotId) return { valid: true };
 
     const formationSlots = getFormationSlots(lineup.formation);
@@ -371,6 +376,7 @@ class MatchBanRoom {
     if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
     if (!['lineup', 'lineup_complete'].includes(this.status)) return { valid: false, error: 'Chưa tới giai đoạn xếp đội hình!' };
     if (this.lineups[teamKey].locked) return { valid: false, error: 'Đội hình đã khóa và không thể chỉnh sửa!' };
+    if (this.lineups[teamKey].ended) return { valid: false, error: 'Đội đã xin kết thúc lineup và đang chờ Trọng tài xử lý!' };
     this.lineups[teamKey] = this.createEmptyLineup(this.lineups[teamKey].formation);
     return { valid: true };
   }
@@ -382,6 +388,7 @@ class MatchBanRoom {
 
     const lineup = this.lineups[teamKey];
     if (lineup.locked) return { valid: false, error: 'Đội hình đã được khóa!' };
+    if (lineup.ended) return { valid: false, error: 'Đội đã xin kết thúc lineup và đang chờ Trọng tài xử lý!' };
     const players = Object.values(lineup.slots).filter(Boolean);
     if (players.length !== 11) return { valid: false, error: `Cần xếp đủ đúng 11 cầu thủ! (Hiện tại: ${players.length}/11)` };
 
@@ -402,6 +409,49 @@ class MatchBanRoom {
       };
     }
     return { valid: true, allLocked: this.lineups.teamA.locked && this.lineups.teamB.locked };
+  }
+
+  requestLineupEnd(teamId) {
+    const teamKey = this.getTeamKey(teamId);
+    if (!teamKey) return { valid: false, error: 'Đội của bạn không tham gia trận đấu này!' };
+    if (this.status !== 'lineup') return { valid: false, error: 'Chỉ được xin kết thúc khi đang xếp đội hình!' };
+
+    const lineup = this.lineups[teamKey];
+    if (lineup.locked) return { valid: false, error: 'Đội hình đã khóa, không cần gửi yêu cầu kết thúc!' };
+    if (lineup.ended || this.lineupEndRequests[teamKey]) {
+      return { valid: false, error: 'Yêu cầu kết thúc lineup đã được gửi tới Trọng tài!' };
+    }
+
+    const team = this.getTeamByKey(teamKey);
+    lineup.ended = true;
+    this.lineupEndRequests[teamKey] = {
+      teamKey,
+      teamId: team?.id || Number(teamId),
+      teamName: team?.name || '',
+      teamCode: team?.code || '',
+      captainName: team?.captainName || '',
+      requestedAt: Date.now()
+    };
+    return { valid: true, request: this.lineupEndRequests[teamKey] };
+  }
+
+  resolveLineupEndRequest(teamId, action) {
+    const teamKey = this.getTeamKey(teamId);
+    if (!teamKey || !this.lineupEndRequests[teamKey]) {
+      return { valid: false, error: 'Không tìm thấy yêu cầu kết thúc lineup đang chờ xử lý!' };
+    }
+    if (!['resume', 'reset'].includes(action)) {
+      return { valid: false, error: 'Cách xử lý yêu cầu lineup không hợp lệ!' };
+    }
+
+    if (action === 'reset') {
+      const formation = this.lineups[teamKey].formation;
+      this.lineups[teamKey] = this.createEmptyLineup(formation);
+    } else {
+      this.lineups[teamKey].ended = false;
+    }
+    this.lineupEndRequests[teamKey] = null;
+    return { valid: true, action, teamKey };
   }
 
   nextGame() {
@@ -448,6 +498,7 @@ class MatchBanRoom {
       lineups,
       lineupSalaryCap: LINEUP_SALARY_CAP,
       formations: Object.keys(FORMATIONS),
+      lineupEndRequests: this.lineupEndRequests,
       allLineupsLocked: lineups.teamA.locked && lineups.teamB.locked
     };
   }
@@ -461,6 +512,8 @@ class MatchBanRoom {
     // spectators/referees. Only the two participating Captains need their
     // opponent's private in-progress lineup hidden.
     if (!teamKey) return state;
+    const ownLineup = state.lineups[teamKey];
+    if (ownLineup?.locked || ownLineup?.ended) return state;
     const lineups = teamKey && state.lineups[teamKey]
       ? { [teamKey]: state.lineups[teamKey] }
       : {};

@@ -185,29 +185,54 @@ test('salary cap is enforced for every lineup edit', () => {
   assert.match(result.error, /305/);
 });
 
-test('participating captains receive only their lineup while outside teams and observers receive both', () => {
+test('a participating captain sees only their lineup until locking, then becomes a read-only observer', () => {
   const { room, rosterA, rosterB } = makeRoom();
   finishBans(room, rosterA, rosterB);
   fillLineup(room, 1, rosterA, room.currentBans.teamB);
-  fillLineup(room, 2, rosterB, room.currentBans.teamA);
-  assert.equal(room.lockLineup(1).valid, true);
-  assert.equal(room.lockLineup(2).valid, true);
 
-  const captainAState = room.getStateForViewer('team', 1);
-  assert.ok(captainAState.lineups.teamA);
-  assert.equal(captainAState.lineups.teamB, undefined);
-  assert.ok(captainAState.gameHistory[1].lineups.teamA);
-  assert.equal(captainAState.gameHistory[1].lineups.teamB, undefined);
+  const editingState = room.getStateForViewer('team', 1);
+  assert.ok(editingState.lineups.teamA);
+  assert.equal(editingState.lineups.teamB, undefined);
+
+  assert.equal(room.lockLineup(1).valid, true);
+  const lockedState = room.getStateForViewer('team', 1);
+  assert.ok(lockedState.lineups.teamA && lockedState.lineups.teamB);
+  const openSlot = getFormationSlots('4231').find(slot => slot.position !== 'GK');
+  assert.equal(room.setLineupPlayer(1, openSlot.id, rosterA[4].id).valid, false);
+  assert.equal(room.setLineupPlayer(2, openSlot.id, rosterB[4].id).valid, true, 'opponent can keep arranging');
 
   const captainOutsideMatch = room.getStateForViewer('team', 3);
   assert.ok(captainOutsideMatch.lineups.teamA && captainOutsideMatch.lineups.teamB);
-  assert.ok(captainOutsideMatch.gameHistory[1].lineups.teamA);
-  assert.ok(captainOutsideMatch.gameHistory[1].lineups.teamB);
 
   const refereeState = room.getStateForViewer('referee', null);
   const spectatorState = room.getStateForViewer('spectator', null);
   assert.ok(refereeState.lineups.teamA && refereeState.lineups.teamB);
   assert.ok(spectatorState.lineups.teamA && spectatorState.lineups.teamB);
+});
+
+test('lineup end request freezes only the requesting team until referee resolves it', () => {
+  const { room, rosterA, rosterB } = makeRoom();
+  finishBans(room, rosterA, rosterB);
+  const outfieldSlots = getFormationSlots('4231').filter(slot => slot.position !== 'GK');
+  assert.equal(room.setLineupPlayer(1, outfieldSlots[0].id, rosterA[4].id).valid, true);
+
+  const request = room.requestLineupEnd(1);
+  assert.equal(request.valid, true);
+  assert.equal(room.status, 'lineup');
+  assert.equal(room.lineups.teamA.ended, true);
+  assert.equal(room.getStateForViewer('team', 1).lineups.teamB !== undefined, true);
+  assert.equal(room.setLineupPlayer(1, outfieldSlots[1].id, rosterA[5].id).valid, false);
+  assert.equal(room.setLineupPlayer(2, outfieldSlots[0].id, rosterB[4].id).valid, true);
+
+  assert.equal(room.resolveLineupEndRequest(1, 'resume').valid, true);
+  assert.equal(room.getState().lineups.teamA.playerCount, 1, 'resume keeps the current lineup');
+  assert.equal(room.setLineupPlayer(1, outfieldSlots[1].id, rosterA[5].id).valid, true);
+  assert.equal(room.requestLineupEnd(1).valid, true);
+  assert.equal(room.resolveLineupEndRequest(1, 'reset').valid, true);
+  assert.equal(room.lineups.teamA.ended, false);
+  assert.equal(room.getState().lineupEndRequests.teamA, null);
+  assert.equal(room.getState().lineups.teamA.playerCount, 0);
+  assert.equal(room.getState().lineups.teamB.playerCount, 1, 'opponent lineup is preserved');
 });
 
 test('referee can end an incomplete lineup and return to pair selection', () => {

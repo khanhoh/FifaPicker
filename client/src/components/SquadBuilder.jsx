@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Ban, Check, ChevronDown, Lock, RotateCcw, Search, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Ban, Check, ChevronDown, Flag, Lock, RotateCcw, Search, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { useDraft } from '../context/DraftContext';
 import { TeamLogo } from '../assets/teamLogos';
 import EnhancementBadge from './EnhancementBadge';
@@ -189,8 +189,8 @@ function ReadonlyLineupPitch({ team, lineup, salaryCap, bansAgainst = [] }) {
             <h2 className="truncate text-sm font-black uppercase text-white" title={`${team?.name || ''} · ${team?.captainName || ''}`}>
               {team?.name}<span className="normal-case text-neon-cyan"> · {team?.captainName || 'Chưa có người chơi'}</span>
             </h2>
-            <div className={`text-[10px] font-bold ${lineup?.locked ? 'text-neon-green' : 'text-amber-300'}`}>
-              {lineup?.locked ? '✓ Đã xác nhận' : `Đang xếp · ${lineup?.playerCount || 0}/11`}
+            <div className={`text-[10px] font-bold ${lineup?.ended ? 'text-red-300' : lineup?.locked ? 'text-neon-green' : 'text-amber-300'}`}>
+              {lineup?.ended ? '⚑ Đã xin End · chờ Trọng tài' : lineup?.locked ? '✓ Đã xác nhận' : `Đang xếp · ${lineup?.playerCount || 0}/11`}
             </div>
           </div>
         </div>
@@ -240,7 +240,7 @@ function ReadonlyLineupPitch({ team, lineup, salaryCap, bansAgainst = [] }) {
   );
 }
 
-function RefereeFinishControls({ lineupsComplete, onRestartBan, onRestartDraft, onEndRoom }) {
+function RefereeFinishControls({ lineupsComplete, endRequests = [], onResolveEndRequest, onRestartBan, onRestartDraft, onEndRoom }) {
   const [pendingAction, setPendingAction] = useState(null);
   const actions = {
     ban: {
@@ -262,7 +262,23 @@ function RefereeFinishControls({ lineupsComplete, onRestartBan, onRestartDraft, 
       run: onEndRoom
     }
   };
-  const selected = actions[pendingAction];
+  const [requestAction, requestedTeamId] = String(pendingAction || '').split(':');
+  const endRequest = endRequests.find(request => String(request.teamId) === requestedTeamId);
+  const selected = requestAction === 'resume' && endRequest
+    ? {
+        title: `Cho ${endRequest.teamCode || endRequest.teamName} tiếp tục xếp?`,
+        detail: 'Yêu cầu End sẽ được hủy và đội giữ nguyên các cầu thủ đang xếp.',
+        confirm: 'Cho tiếp tục',
+        run: () => onResolveEndRequest(endRequest.teamId, 'resume')
+      }
+    : requestAction === 'reset' && endRequest
+      ? {
+          title: `Cho ${endRequest.teamCode || endRequest.teamName} xếp lại từ đầu?`,
+          detail: 'Chỉ lineup của đội xin End được xóa và mở lại. Lineup đối thủ được giữ nguyên.',
+          confirm: 'Xếp lại từ đầu',
+          run: () => onResolveEndRequest(endRequest.teamId, 'reset')
+        }
+      : actions[pendingAction];
 
   const confirm = () => {
     selected?.run();
@@ -272,6 +288,24 @@ function RefereeFinishControls({ lineupsComplete, onRestartBan, onRestartDraft, 
   return (
     <>
       <div className="mb-4 rounded-2xl border border-neon-green/40 bg-emerald-950/20 p-4">
+        {endRequests.map(request => (
+          <div key={request.teamKey} className="mb-3 rounded-xl border border-red-500/60 bg-red-950/35 p-3">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs font-black uppercase text-red-300">
+                  <AlertTriangle className="h-4 w-4" /> Yêu cầu End lineup
+                </div>
+                <p className="mt-1 truncate text-xs text-slate-300">
+                  {request.teamCode || request.teamName} · {request.captainName || 'Captain'} đang chờ quyết định. Đối thủ vẫn được tiếp tục xếp.
+                </p>
+              </div>
+              <div className="grid shrink-0 grid-cols-2 gap-2">
+                <button type="button" onClick={() => setPendingAction(`resume:${request.teamId}`)} className="rounded-lg border border-emerald-500/50 bg-emerald-950/50 px-3 py-2 text-[10px] font-black uppercase text-emerald-300">Cho tiếp tục</button>
+                <button type="button" onClick={() => setPendingAction(`reset:${request.teamId}`)} className="rounded-lg border border-amber-500/50 bg-amber-950/50 px-3 py-2 text-[10px] font-black uppercase text-amber-300">Xếp lại từ đầu</button>
+              </div>
+            </div>
+          </div>
+        ))}
         <div className="mb-3 text-center text-xs font-black uppercase tracking-widest text-neon-green">
           {lineupsComplete ? 'Hai đội đã xác nhận' : 'Đang xếp đội hình'} · Quyền điều khiển của Trọng tài
         </div>
@@ -308,6 +342,8 @@ export default function SquadBuilder() {
     moveLineupPlayer,
     clearLineup,
     lockLineup,
+    requestLineupEnd,
+    resolveLineupEnd,
     restartBanSelection,
     resetDraft,
     destroyRoom
@@ -320,6 +356,7 @@ export default function SquadBuilder() {
   const [searchTerm, setSearchTerm] = useState('');
   const [draggedPlayer, setDraggedPlayer] = useState(null);
   const [dragOverSlotId, setDragOverSlotId] = useState(null);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   useEffect(() => {
     setSelectedSlotId(null);
@@ -348,7 +385,7 @@ export default function SquadBuilder() {
     return new Map(entries);
   }, [lineup?.slots]);
   const selectedSlot = formationSlots.find(slot => slot.id === selectedSlotId) || null;
-  const editable = currentUser.role === 'team' && currentUser.teamId === activeTeam?.id && !lineup?.locked;
+  const editable = currentUser.role === 'team' && currentUser.teamId === activeTeam?.id && !lineup?.locked && !lineup?.ended;
 
   const availablePlayers = roster.filter(player => (
     !bannedIds.has(String(player.id)) && !selectedIds.has(String(player.id))
@@ -435,18 +472,28 @@ export default function SquadBuilder() {
 
   const salaryCap = banState?.lineupSalaryCap || 305;
   const isComplete = lineup.playerCount === 11 && lineup.salary <= salaryCap;
+  const observingAfterOwnEnd = Boolean(myTeamKey && (lineup.locked || lineup.ended));
+  const endRequests = Object.values(banState?.lineupEndRequests || {}).filter(Boolean);
 
-  if (!myTeamKey) {
+  if (!myTeamKey || observingAfterOwnEnd) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#050811] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-[1500px]">
           <div className="mb-4 rounded-2xl border border-slate-800 bg-[#0b1220] p-4 text-center shadow-xl">
             <div className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-neon-green"><ShieldCheck className="h-4 w-4" /> Theo dõi hai đội hình song song</div>
-            <p className="mt-1 text-xs text-slate-400">Hai Captain đang xếp đội hình sau Ban. Màn hình cập nhật theo thời gian thực.</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {lineup?.ended
+                ? 'Đã gửi yêu cầu End lineup. Đang chờ Trọng tài quyết định; đối thủ vẫn có thể tiếp tục xếp.'
+                : lineup?.locked
+                  ? 'Đội hình của bạn đã khóa. Bạn chỉ có thể theo dõi đối thủ cập nhật theo thời gian thực.'
+                  : 'Hai Captain đang xếp đội hình sau Ban. Màn hình cập nhật theo thời gian thực.'}
+            </p>
           </div>
           {currentUser.role === 'referee' && ['lineup', 'lineup_complete'].includes(banState?.status) && (
             <RefereeFinishControls
               lineupsComplete={banState?.status === 'lineup_complete'}
+              endRequests={endRequests}
+              onResolveEndRequest={resolveLineupEnd}
               onRestartBan={restartBanSelection}
               onRestartDraft={resetDraft}
               onEndRoom={destroyRoom}
@@ -631,22 +678,44 @@ export default function SquadBuilder() {
             </div>
 
             {editable && (
-              <button
-                type="button"
-                onClick={lockLineup}
-                disabled={!isComplete}
-                className={`mt-3 w-full rounded-xl py-3 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition ${
-                  isComplete
-                    ? 'bg-neon-green text-slate-950 hover:bg-emerald-300 shadow-[0_0_16px_rgba(0,255,102,0.45)]'
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                <Lock className="w-4 h-4" /> Khóa đội hình thi đấu
-              </button>
+              <div className="mt-3 grid grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEndConfirm(true)}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-red-500/60 bg-red-950/50 px-2 py-3 text-xs font-black uppercase tracking-wider text-red-300 transition hover:bg-red-900/60"
+                >
+                  <Flag className="h-4 w-4" /> End lineup
+                </button>
+                <button
+                  type="button"
+                  onClick={lockLineup}
+                  disabled={!isComplete}
+                  className={`rounded-xl py-3 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition ${
+                    isComplete
+                      ? 'bg-neon-green text-slate-950 hover:bg-emerald-300 shadow-[0_0_16px_rgba(0,255,102,0.45)]'
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  <Lock className="w-4 h-4" /> Khóa đội hình thi đấu
+                </button>
+              </div>
             )}
           </aside>
         </div>
       </div>
+      {showEndConfirm && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={() => setShowEndConfirm(false)}>
+          <div className="w-full max-w-md rounded-3xl border border-red-500/60 bg-[#0b1220] p-6 text-center shadow-2xl" onMouseDown={event => event.stopPropagation()}>
+            <Flag className="mx-auto h-10 w-10 text-red-400" />
+            <h2 className="mt-3 text-lg font-black uppercase text-white">Xin End lineup?</h2>
+            <p className="mt-2 text-xs leading-5 text-slate-400">Đội của bạn sẽ dừng xếp và chuyển sang chế độ xem. Trọng tài nhận thông báo để quyết định cho xếp lại, Ban lại hoặc Restart Draft.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setShowEndConfirm(false)} className="rounded-xl border border-slate-700 bg-slate-900 py-3 text-xs font-black uppercase text-slate-300">Hủy</button>
+              <button type="button" onClick={() => { requestLineupEnd(); setShowEndConfirm(false); }} className="rounded-xl bg-red-600 py-3 text-xs font-black uppercase text-white hover:bg-red-500">Xác nhận End</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDraft } from '../context/DraftContext';
 import PlayerCard from './PlayerCard';
 import EnhancementBadge from './EnhancementBadge';
-import { Search, RotateCcw, CheckCircle2, AlertCircle, Zap, ChevronDown } from 'lucide-react';
+import { Search, RotateCcw, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
 import { TeamLogo } from '../assets/teamLogos';
 
 const POSITION_GROUPS = {
@@ -697,7 +697,6 @@ export default function PlayerSearchPicker() {
                   ) : (
                     <>
                       <span aria-hidden="true" className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 transition-transform duration-700 ease-out group-hover:translate-x-[430%] motion-reduce:transition-none" />
-                      <Zap aria-hidden="true" className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-12 -translate-y-1/2 fill-amber-400 text-amber-500 transition-transform duration-300 group-hover:-translate-x-[3.25rem] group-hover:scale-110" />
                       <span className="relative z-10 block text-center">PICK</span>
                     </>
                   )}
