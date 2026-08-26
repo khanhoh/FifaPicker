@@ -70,6 +70,35 @@ test('main and substitute phases each allow exactly one goalkeeper', () => {
   assert.equal(room.validatePick(makePlayer('last-sub-gk', 'GK'), 1).valid, true);
 });
 
+test('draft preparation does not start the timer until the referee confirms', () => {
+  const room = makeRoom();
+  const io = makeIo();
+
+  assert.equal(room.prepareDraft(io).valid, true);
+  assert.equal(room.status, 'ready');
+  assert.equal(room.timerInterval, undefined);
+  assert.equal(room.nextTurn(io).valid, false, 'manual next must not bypass referee confirmation');
+  assert.equal(room.timerInterval, undefined);
+  assert.equal(room.startDraft(io).valid, true);
+  assert.equal(room.status, 'drafting');
+  assert.ok(room.timerInterval);
+  clearInterval(room.timerInterval);
+});
+
+test('substitute round 5 starts with Team 1 after Team 1 finishes round 4', () => {
+  const room = makeRoom();
+  const io = makeIo();
+  room.status = 'drafting';
+  room.currentRoundIdx = 11; // -4R, reverse: Team 4 -> Team 1.
+  room.currentTeamTurnIdx = 3; // Team 1 is finishing the round.
+
+  assert.equal(room.getCurrentTeam().id, 1);
+  room.nextTurn(io);
+  assert.equal(room.currentRoundIdx, 12);
+  assert.equal(room.getCurrentTeam().id, 1);
+  clearInterval(room.timerInterval);
+});
+
 test('compensation freezes the original missing count instead of shrinking after one pick', () => {
   const room = makeRoom();
   const io = makeIo();

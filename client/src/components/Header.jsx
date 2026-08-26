@@ -91,7 +91,7 @@ export default function Header({ onOpenRules, currentView, setCurrentView }) {
       </div>
 
       {/* Center: Digital Neon Timer & Turn Banner */}
-      {!canAccessBan && <div className="flex items-center gap-3">
+      {!canAccessBan && draftState?.status !== 'ready' && <div className="flex items-center gap-3">
         {/* Digital Timer */}
         <div
           className={`flex items-center justify-center px-4 py-0.5 rounded-xl font-digital text-2xl md:text-3xl font-black tracking-widest border transition ${

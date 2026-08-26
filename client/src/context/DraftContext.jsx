@@ -48,6 +48,7 @@ export function DraftProvider({ children }) {
   const [banState, setBanState] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState(session ? 'connecting' : 'idle');
   const [errorNotice, setErrorNotice] = useState({ message: '', roomCode: null });
+  const [pickError, setPickError] = useState(null);
   const [successNotice, setSuccessNotice] = useState({ message: '', roomCode: null });
   const [backendInfo, setBackendInfo] = useState(null);
 
@@ -72,6 +73,7 @@ export function DraftProvider({ children }) {
     setLobbyState(null);
     setDraftState(null);
     setBanState(null);
+    setPickError(null);
   };
 
   const clearError = () => {
@@ -175,7 +177,12 @@ export function DraftProvider({ children }) {
     socket.on('player_picked_event', ({ pick, team }) => {
       showSuccess(`Đội ${team.name} vừa chọn ${pick.name} (${pick.pos} ${pick.ovr} - Mùa ${pick.season?.toUpperCase()})`);
     });
-    socket.on('pick_rejected', ({ message }) => showError(message));
+    socket.on('pick_rejected', ({ message, playerName }) => {
+      setPickError({
+        message: message || 'Lựa chọn này không hợp lệ.',
+        playerName: playerName || ''
+      });
+    });
     socket.on('action_error', ({ message }) => showError(message));
     socket.on('draft_completed', ({ message }) => showSuccess(message, 0));
     socket.on('session_revoked', ({ message }) => {
@@ -304,6 +311,7 @@ export function DraftProvider({ children }) {
     exitRoom,
     leaveRoom: exitRoom,
     startDraft: () => emit('start_draft'),
+    confirmDraftStart: () => emit('confirm_draft_start'),
     pauseDraft: () => emit('pause_draft'),
     resumeDraft: () => emit('resume_draft'),
     resetDraft: () => emit('reset_draft'),
@@ -312,7 +320,12 @@ export function DraftProvider({ children }) {
     randomizeTeams: () => emit('randomize_teams'),
     destroyRoom: () => emit('destroy_room'),
     removePlayer: (playerId) => emit('remove_player', { playerId }),
-    pickPlayer: (player) => emit('pick_player', { player }),
+    pickPlayer: (player) => {
+      setPickError(null);
+      return emit('pick_player', { player });
+    },
+    pickError,
+    dismissPickError: () => setPickError(null),
     openBanStage: () => emit('open_ban_stage'),
     setupBanPhase: (payload) => emit('setup_ban_phase', payload),
     toggleBanPlayer: (player) => emit('toggle_ban_player', { player }),

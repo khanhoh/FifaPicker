@@ -185,7 +185,7 @@ test('salary cap is enforced for every lineup edit', () => {
   assert.match(result.error, /305/);
 });
 
-test('captains receive only their own lineup while referee and spectator receive both', () => {
+test('participating captains receive only their lineup while outside teams and observers receive both', () => {
   const { room, rosterA, rosterB } = makeRoom();
   finishBans(room, rosterA, rosterB);
   fillLineup(room, 1, rosterA, room.currentBans.teamB);
@@ -200,7 +200,9 @@ test('captains receive only their own lineup while referee and spectator receive
   assert.equal(captainAState.gameHistory[1].lineups.teamB, undefined);
 
   const captainOutsideMatch = room.getStateForViewer('team', 3);
-  assert.deepEqual(captainOutsideMatch.lineups, {});
+  assert.ok(captainOutsideMatch.lineups.teamA && captainOutsideMatch.lineups.teamB);
+  assert.ok(captainOutsideMatch.gameHistory[1].lineups.teamA);
+  assert.ok(captainOutsideMatch.gameHistory[1].lineups.teamB);
 
   const refereeState = room.getStateForViewer('referee', null);
   const spectatorState = room.getStateForViewer('spectator', null);
@@ -208,19 +210,30 @@ test('captains receive only their own lineup while referee and spectator receive
   assert.ok(spectatorState.lineups.teamA && spectatorState.lineups.teamB);
 });
 
-test('referee can return to pair selection only after both valid elevens are confirmed', () => {
+test('referee can end an incomplete lineup and return to pair selection', () => {
   const { room, rosterA, rosterB } = makeRoom();
   finishBans(room, rosterA, rosterB);
-  assert.equal(room.restartBanSelection().valid, false);
 
   fillLineup(room, 1, rosterA, room.currentBans.teamB);
   assert.equal(room.lockLineup(1).valid, true);
-  assert.equal(room.restartBanSelection().valid, false);
+  assert.equal(room.restartBanSelection().valid, true);
+  assert.equal(room.gameHistory[1].lineupForcedEnd, true);
+  assert.equal(room.gameHistory[1].lineups.teamA.locked, true);
+  assert.equal(room.gameHistory[1].lineups.teamB.locked, false);
+  assert.equal(room.currentGame, 2);
+  assert.equal(room.status, 'selecting');
+});
 
+test('a completed lineup is archived as a normal end before the next pairing', () => {
+  const { room, rosterA, rosterB } = makeRoom();
+  finishBans(room, rosterA, rosterB);
+  fillLineup(room, 1, rosterA, room.currentBans.teamB);
   fillLineup(room, 2, rosterB, room.currentBans.teamA);
+  assert.equal(room.lockLineup(1).valid, true);
   assert.equal(room.lockLineup(2).valid, true);
   assert.equal(room.status, 'lineup_complete');
+
   assert.equal(room.restartBanSelection().valid, true);
-  assert.equal(room.currentGame, 2);
+  assert.equal(room.gameHistory[1].lineupForcedEnd, false);
   assert.equal(room.status, 'selecting');
 });

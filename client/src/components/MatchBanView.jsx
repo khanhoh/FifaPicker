@@ -77,7 +77,9 @@ function TeamRosterPanel({ team, roster, bansAgainst, canBan, onSelectPlayer }) 
         <div className="flex min-w-0 items-center gap-2.5">
           <TeamLogo code={team?.code} name={team?.name} color={team?.color} logoUrl={team?.logoUrl} className="h-9 w-9" />
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-black uppercase tracking-wider text-white">{team?.name}</h2>
+            <h2 className="truncate text-sm font-black uppercase tracking-wider text-white" title={`${team?.name || ''} · ${team?.captainName || ''}`}>
+              {team?.name}<span className="normal-case text-neon-cyan"> · {team?.captainName || 'Chưa có người chơi'}</span>
+            </h2>
             <div className="text-[10px] font-bold text-slate-500">Đủ {roster.length}/23 cầu thủ</div>
           </div>
         </div>
@@ -168,7 +170,7 @@ function TeamSelect({ teams, isReferee, onStart }) {
                   <label className="relative block">
                     <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">Đội {label}</span>
                     <select value={value} onChange={event => setter(Number(event.target.value))} className="w-full appearance-none rounded-2xl border border-slate-700 bg-[#101928] px-4 py-3 pr-10 text-sm font-black text-white outline-none transition focus:border-neon-green">
-                      {teams.map(team => <option key={team.id} value={team.id}>{team.code} · {team.name}</option>)}
+                      {teams.map(team => <option key={team.id} value={team.id}>{team.code} · {team.name} · {team.captainName || 'Chưa có người chơi'}</option>)}
                     </select>
                     <ChevronDown className="pointer-events-none absolute bottom-3.5 right-3 h-4 w-4 text-slate-500" />
                   </label>

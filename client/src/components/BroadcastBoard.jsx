@@ -198,8 +198,11 @@ export default function BroadcastBoard() {
                     {idx + 1}
                   </div>
                   <TeamLogo code={t.code} name={t.name} color={t.color} logoUrl={t.logoUrl} className="w-9 h-7" />
-                  <div className="text-sm font-black tracking-wider text-white">
-                    {t.code}
+                  <div className="min-w-0">
+                    <div className="text-sm font-black tracking-wider text-white">{t.code}</div>
+                    <div className="max-w-24 truncate text-[9px] font-bold text-neon-cyan" title={t.captainName}>
+                      {t.captainName || 'Chưa có người chơi'}
+                    </div>
                   </div>
                   <span
                     title={t.connected ? 'Đang online' : 'Mất kết nối'}
@@ -369,6 +372,9 @@ export default function BroadcastBoard() {
                       </div>
                       <div className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400" title={t.name}>
                         {t.name}
+                      </div>
+                      <div className="truncate text-[11px] font-bold text-neon-cyan" title={t.captainName}>
+                        👤 {t.captainName || 'Chưa có người chơi'}
                       </div>
                     </div>
                   </div>

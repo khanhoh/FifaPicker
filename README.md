@@ -39,7 +39,7 @@ Hệ thống Webapp chọn cầu thủ (Draft Picker) theo thời gian thực ch
 1. Trọng tài chọn **Tạo Room**, nhập tên và copy mã 6 ký tự.
 2. Bốn người chơi chọn **Join Room**, nhập mã và tên Captain; server tự phân ngẫu nhiên vào AMT, NK, FFB hoặc TAG còn trống.
 3. Người chơi có thể swap sang vị trí khác; nếu vị trí đã có người thì hai Captain được hoán đổi ngay. Trọng tài có thể randomize toàn bộ vị trí hoặc xóa người chơi khỏi Lobby.
-4. Nút **Bắt đầu Draft** chỉ mở khi đủ 4 đội đang online.
+4. Nút **Bắt đầu Draft** chỉ mở khi đủ 4 đội đang online. Nút này đưa mọi người vào màn hình chờ Draft nhưng chưa chạy đồng hồ; Trọng tài phải xác nhận thêm một lần để bắt đầu lượt pick đầu tiên.
 5. Khán giả chọn chế độ **Khán giả**, nhập mã để xem mà không chiếm team slot.
 6. Trọng tài có thể chọn **Hủy Room** để thu hồi toàn bộ session và ngắt kết nối tất cả thành viên.
 

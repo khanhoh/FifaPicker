@@ -186,7 +186,9 @@ function ReadonlyLineupPitch({ team, lineup, salaryCap, bansAgainst = [] }) {
         <div className="flex min-w-0 items-center gap-2">
           <TeamMark team={team} className="h-9 w-9" />
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-black uppercase text-white">{team?.name}</h2>
+            <h2 className="truncate text-sm font-black uppercase text-white" title={`${team?.name || ''} · ${team?.captainName || ''}`}>
+              {team?.name}<span className="normal-case text-neon-cyan"> · {team?.captainName || 'Chưa có người chơi'}</span>
+            </h2>
             <div className={`text-[10px] font-bold ${lineup?.locked ? 'text-neon-green' : 'text-amber-300'}`}>
               {lineup?.locked ? '✓ Đã xác nhận' : `Đang xếp · ${lineup?.playerCount || 0}/11`}
             </div>
@@ -238,13 +240,13 @@ function ReadonlyLineupPitch({ team, lineup, salaryCap, bansAgainst = [] }) {
   );
 }
 
-function RefereeFinishControls({ onRestartBan, onRestartDraft, onEndRoom }) {
+function RefereeFinishControls({ lineupsComplete, onRestartBan, onRestartDraft, onEndRoom }) {
   const [pendingAction, setPendingAction] = useState(null);
   const actions = {
     ban: {
-      title: 'Chọn lại cặp đấu và Ban lại?',
-      detail: 'Hai đội hình hiện tại được lưu vào lịch sử. Trọng tài sẽ quay về màn chọn hai đội.',
-      confirm: 'Ban lại',
+      title: lineupsComplete ? 'Chọn lại cặp đấu và Ban lại?' : 'Kết thúc lượt xếp đội hình?',
+      detail: 'Đội hình hiện tại được lưu vào lịch sử. Trọng tài sẽ quay về màn chọn hai đội cho lượt tiếp theo.',
+      confirm: lineupsComplete ? 'Ban lại' : 'Kết thúc lượt',
       run: onRestartBan
     },
     draft: {
@@ -270,9 +272,11 @@ function RefereeFinishControls({ onRestartBan, onRestartDraft, onEndRoom }) {
   return (
     <>
       <div className="mb-4 rounded-2xl border border-neon-green/40 bg-emerald-950/20 p-4">
-        <div className="mb-3 text-center text-xs font-black uppercase tracking-widest text-neon-green">Hai đội đã xác nhận · Quyền điều khiển của Trọng tài</div>
+        <div className="mb-3 text-center text-xs font-black uppercase tracking-widest text-neon-green">
+          {lineupsComplete ? 'Hai đội đã xác nhận' : 'Đang xếp đội hình'} · Quyền điều khiển của Trọng tài
+        </div>
         <div className="grid gap-2 sm:grid-cols-3">
-          <button type="button" onClick={() => setPendingAction('ban')} className="flex items-center justify-center gap-2 rounded-xl border border-red-500/50 bg-red-950/40 py-3 text-xs font-black uppercase text-red-300 transition hover:bg-red-900/50"><Ban className="h-4 w-4" /> Ban lại</button>
+          <button type="button" onClick={() => setPendingAction('ban')} className="flex items-center justify-center gap-2 rounded-xl border border-red-500/50 bg-red-950/40 py-3 text-xs font-black uppercase text-red-300 transition hover:bg-red-900/50"><Ban className="h-4 w-4" /> {lineupsComplete ? 'Ban lại' : 'Kết thúc lineup'}</button>
           <button type="button" onClick={() => setPendingAction('draft')} className="flex items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-950/30 py-3 text-xs font-black uppercase text-amber-300 transition hover:bg-amber-900/40"><RotateCcw className="h-4 w-4" /> Restart Draft</button>
           <button type="button" onClick={() => setPendingAction('end')} className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/50 bg-rose-950/40 py-3 text-xs font-black uppercase text-rose-300 transition hover:bg-rose-900/50"><Trash2 className="h-4 w-4" /> Kết thúc room</button>
         </div>
@@ -432,18 +436,6 @@ export default function SquadBuilder() {
   const salaryCap = banState?.lineupSalaryCap || 305;
   const isComplete = lineup.playerCount === 11 && lineup.salary <= salaryCap;
 
-  if (currentUser.role === 'team' && !myTeamKey) {
-    return (
-      <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto bg-[#050811] p-5">
-        <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0a101d] p-7 text-center shadow-2xl">
-          <Lock className="mx-auto h-10 w-10 text-slate-500" />
-          <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-white">Đội của bạn không tham gia cặp đấu</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Captain chỉ được xem và xếp đội hình của chính đội mình. Trọng tài và Khán giả mới có quyền theo dõi đồng thời hai đội hình.</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!myTeamKey) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#050811] px-3 py-4 sm:px-5">
@@ -452,8 +444,13 @@ export default function SquadBuilder() {
             <div className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-neon-green"><ShieldCheck className="h-4 w-4" /> Theo dõi hai đội hình song song</div>
             <p className="mt-1 text-xs text-slate-400">Hai Captain đang xếp đội hình sau Ban. Màn hình cập nhật theo thời gian thực.</p>
           </div>
-          {currentUser.role === 'referee' && banState?.status === 'lineup_complete' && (
-            <RefereeFinishControls onRestartBan={restartBanSelection} onRestartDraft={resetDraft} onEndRoom={destroyRoom} />
+          {currentUser.role === 'referee' && ['lineup', 'lineup_complete'].includes(banState?.status) && (
+            <RefereeFinishControls
+              lineupsComplete={banState?.status === 'lineup_complete'}
+              onRestartBan={restartBanSelection}
+              onRestartDraft={resetDraft}
+              onEndRoom={destroyRoom}
+            />
           )}
           <div className="grid gap-4 xl:grid-cols-2">
             <ReadonlyLineupPitch team={teamA} lineup={banState?.lineups?.teamA} salaryCap={salaryCap} bansAgainst={banState?.currentBans?.teamB || []} />
@@ -479,7 +476,9 @@ export default function SquadBuilder() {
           <div className="flex min-w-0 items-center gap-2 rounded-xl border border-neon-green/50 bg-emerald-950/35 px-3 py-2 shadow-[0_0_14px_rgba(0,255,102,0.12)]">
             <TeamMark team={activeTeam} />
             <span className="min-w-0">
-              <span className="block truncate text-xs font-black text-white">{activeTeam?.name}</span>
+              <span className="block truncate text-xs font-black text-white" title={`${activeTeam?.name || ''} · ${activeTeam?.captainName || ''}`}>
+                {activeTeam?.name}<span className="text-neon-cyan"> · {activeTeam?.captainName || 'Chưa có người chơi'}</span>
+              </span>
               <span className={`block text-[10px] font-bold ${lineup?.locked ? 'text-neon-green' : 'text-slate-400'}`}>
                 {lineup?.locked ? '✓ Đã khóa đội hình' : 'Đội hình của bạn'}
               </span>
@@ -493,7 +492,9 @@ export default function SquadBuilder() {
               <div className="flex items-center gap-2 min-w-0">
                 <TeamMark team={activeTeam} className="w-9 h-9" />
                 <div className="min-w-0">
-                  <h2 className="font-black uppercase tracking-wide truncate">{activeTeam?.name}</h2>
+                  <h2 className="font-black uppercase tracking-wide truncate" title={`${activeTeam?.name || ''} · ${activeTeam?.captainName || ''}`}>
+                    {activeTeam?.name}<span className="normal-case text-neon-cyan"> · {activeTeam?.captainName || 'Chưa có người chơi'}</span>
+                  </h2>
                   <span className="text-[10px] text-slate-400">Game {banState?.currentGame}</span>
                 </div>
               </div>

@@ -336,7 +336,7 @@ class RoomManager {
   cleanup(now = Date.now()) {
     for (const room of this.rooms.values()) {
       const idleFor = now - room.lastActiveAt;
-      const shouldDeleteWaitingRoom = room.draftRoom.status === 'waiting' && idleFor > 2 * 60 * 60 * 1000;
+      const shouldDeleteWaitingRoom = ['waiting', 'ready'].includes(room.draftRoom.status) && idleFor > 2 * 60 * 60 * 1000;
       const shouldDeleteFinishedRoom = room.draftRoom.status === 'completed' && idleFor > 6 * 60 * 60 * 1000;
       if (shouldDeleteWaitingRoom || shouldDeleteFinishedRoom) this.destroyRoom(room.code);
     }

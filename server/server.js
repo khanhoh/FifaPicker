@@ -5,7 +5,7 @@ const fs = require('fs');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { getAllSeasons } = require('./excelParser');
-const { searchPlayers, getHandshakeToken, getTeamColors } = require('./fifaService');
+const { searchPlayers, getHandshakeToken } = require('./fifaService');
 const { getSeasonMetadataMaps, getFallbackPresentation, seasonTagToAssetCode } = require('./seasonMetadata');
 const { RoomManager } = require('./roomManager');
 
@@ -105,24 +105,12 @@ app.get('/api/seasons', async (req, res) => {
   res.json({ success: true, data: seasons });
 });
 
-app.get('/api/team-colors', async (req, res) => {
-  try {
-    const teamColors = await getTeamColors();
-    const publicOptions = teamColors.map(({ query, ...option }) => option);
-    res.json({ success: true, count: publicOptions.length, data: publicOptions });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 app.get('/api/players', async (req, res) => {
   try {
     const {
       class: cardClass,
       pos,
       playername,
-      teamColor,
-      trait,
       minOvr,
       maxOvr,
       minSalary,
@@ -133,8 +121,6 @@ app.get('/api/players', async (req, res) => {
       cardClass,
       pos,
       playername,
-      teamColor,
-      trait,
       minOvr,
       maxOvr,
       minSalary,
@@ -240,7 +226,22 @@ io.on('connection', (socket) => {
       socket.emit('action_error', { message: 'Cần đủ 4 đội đang online trước khi bắt đầu.' });
       return;
     }
-    context.room.draftRoom.startDraft(io);
+    const result = context.room.draftRoom.prepareDraft(io);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+      return;
+    }
+    broadcastLobby(context.room);
+  });
+
+  socket.on('confirm_draft_start', () => {
+    const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền xác nhận bắt đầu Draft!');
+    if (!context) return;
+    const result = context.room.draftRoom.startDraft(io);
+    if (!result.valid) {
+      socket.emit('action_error', { message: result.error });
+      return;
+    }
     broadcastLobby(context.room);
   });
 
@@ -269,14 +270,20 @@ io.on('connection', (socket) => {
   socket.on('manual_next_turn', () => {
     const context = requireRole(socket, 'referee', 'Chỉ Trọng tài mới có quyền chuyển lượt!');
     if (!context) return;
-    context.room.draftRoom.nextTurn(io);
+    const result = context.room.draftRoom.nextTurn(io);
+    if (!result.valid) socket.emit('action_error', { message: result.error });
   });
 
   socket.on('pick_player', ({ player } = {}) => {
     const context = requireRole(socket, 'team', 'Chỉ Captain của đội mới có quyền Pick cầu thủ!');
     if (!context) return;
     const result = context.room.draftRoom.executePick(player, context.teamId, io);
-    if (!result.valid) socket.emit('pick_rejected', { message: result.error });
+    if (!result.valid) {
+      socket.emit('pick_rejected', {
+        message: result.error,
+        playerName: String(player?.name || '').trim()
+      });
+    }
   });
 
   socket.on('swap_team', ({ targetTeamId } = {}) => {

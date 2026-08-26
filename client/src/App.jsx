@@ -8,6 +8,8 @@ import RulesModal from './components/RulesModal';
 import RoomGateway from './components/RoomGateway';
 import RoomLobby from './components/RoomLobby';
 import DraftCompleteModal from './components/DraftCompleteModal';
+import DraftReadyModal from './components/DraftReadyModal';
+import PickErrorModal from './components/PickErrorModal';
 import SmokeApp from './smoke/SmokeApp';
 
 function MainApp() {
@@ -63,6 +65,8 @@ function MainApp() {
         onClose={() => setIsRulesOpen(false)}
       />
       <DraftCompleteModal />
+      <DraftReadyModal />
+      <PickErrorModal />
     </div>
   );
 }

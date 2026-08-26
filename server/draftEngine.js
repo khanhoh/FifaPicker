@@ -14,7 +14,7 @@ const ROUNDS_CONFIG = [
   { roundNum: 10, label: '-2R', subLabel: '2.2', phase: 'SUB', picksPerTurn: 2, timeLimit: 60, direction: 'REVERSE' },
   { roundNum: 11, label: '-3R', subLabel: '2.3', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'FORWARD' },
   { roundNum: 12, label: '-4R', subLabel: '2.4', phase: 'SUB', picksPerTurn: 2, timeLimit: 60, direction: 'REVERSE' },
-  { roundNum: 13, label: '-5R', subLabel: '2.5', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'REVERSE' },
+  { roundNum: 13, label: '-5R', subLabel: '2.5', phase: 'SUB', picksPerTurn: 3, timeLimit: 90, direction: 'FORWARD' },
   { roundNum: 14, label: '-6R', subLabel: 'BÙ', phase: 'SUB', picksPerTurn: 1, timeLimit: 30, direction: 'FORWARD', isCompensate: true }
 ];
 
@@ -173,8 +173,19 @@ class DraftRoom {
     return this.turnPickTarget || this.calculateTurnPickTarget();
   }
 
+  prepareDraft(io) {
+    if (this.status !== 'waiting') {
+      return { valid: false, error: 'Draft đã rời Lobby hoặc đã bắt đầu.' };
+    }
+    this.status = 'ready';
+    this.broadcastState(io);
+    return { valid: true };
+  }
+
   startDraft(io) {
-    if (this.status === 'drafting') return;
+    if (this.status !== 'ready') {
+      return { valid: false, error: 'Draft chưa ở màn hình chờ xác nhận.' };
+    }
     this.status = 'drafting';
     this.currentRoundIdx = 0;
     this.currentTeamTurnIdx = 0;
@@ -182,6 +193,7 @@ class DraftRoom {
     this.turnPickTarget = 0;
     this.turnRoundPickOffset = 0;
     this.startTurnTimer(io);
+    return { valid: true };
   }
 
   pauseDraft(io) {
@@ -394,6 +406,9 @@ class DraftRoom {
   }
 
   nextTurn(io) {
+    if (this.status !== 'drafting') {
+      return { valid: false, error: 'Chỉ có thể chuyển lượt khi Draft đang diễn ra.' };
+    }
     this.picksInCurrentTurn = 0;
     this.turnPickTarget = 0;
     this.turnRoundPickOffset = 0;
@@ -408,11 +423,12 @@ class DraftRoom {
 
       if (this.currentRoundIdx >= ROUNDS_CONFIG.length) {
         this.finishDraft(io);
-        return;
+        return { valid: true };
       }
     }
 
     this.startTurnTimer(io);
+    return { valid: true };
   }
 
   finishDraft(io) {

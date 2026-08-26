@@ -94,7 +94,8 @@ class MatchBanRoom {
     if (this.draftRoom.status !== 'completed') {
       return { valid: false, error: 'Draft phải hoàn tất đủ 23 cầu thủ mỗi đội trước khi mở giai đoạn Ban!' };
     }
-    const canOpen = this.status === 'idle' || (allowRestart && this.status === 'lineup_complete');
+    const canOpen = this.status === 'idle'
+      || (allowRestart && ['lineup', 'lineup_complete'].includes(this.status));
     if (!canOpen) {
       return { valid: false, error: 'Không thể mở lại màn chọn cặp đấu ở thời điểm hiện tại!' };
     }
@@ -408,9 +409,16 @@ class MatchBanRoom {
   }
 
   restartBanSelection() {
-    if (this.status !== 'lineup_complete') {
-      return { valid: false, error: 'Hai đội phải xác nhận đội hình trước khi Ban lại!' };
+    if (!['lineup', 'lineup_complete'].includes(this.status)) {
+      return { valid: false, error: 'Chỉ có thể kết thúc lượt khi đang xếp đội hình!' };
     }
+    const forcedEnd = this.status !== 'lineup_complete';
+    this.gameHistory[this.currentGame] = {
+      ...this.gameHistory[this.currentGame],
+      lineups: JSON.parse(JSON.stringify(this.lineups)),
+      lineupEndedAt: Date.now(),
+      lineupForcedEnd: forcedEnd
+    };
     this.currentGame += 1;
     return this.openSelection({ allowRestart: true });
   }
@@ -449,6 +457,10 @@ class MatchBanRoom {
     if (role !== 'team') return state;
 
     const teamKey = this.getTeamKey(teamId);
+    // Teams outside the current pairing are read-only observers, just like
+    // spectators/referees. Only the two participating Captains need their
+    // opponent's private in-progress lineup hidden.
+    if (!teamKey) return state;
     const lineups = teamKey && state.lineups[teamKey]
       ? { [teamKey]: state.lineups[teamKey] }
       : {};

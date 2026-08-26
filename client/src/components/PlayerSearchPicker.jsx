@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useDraft } from '../context/DraftContext';
 import PlayerCard from './PlayerCard';
 import EnhancementBadge from './EnhancementBadge';
-import IconFilterDropdown from './IconFilterDropdown';
 import { Search, RotateCcw, CheckCircle2, AlertCircle, Zap, ChevronDown } from 'lucide-react';
 import { TeamLogo } from '../assets/teamLogos';
 
@@ -21,29 +20,6 @@ const DETAILED_POSITIONS = [
   'CB', 'LB', 'RB', 'LWB', 'RWB',
   'GK'
 ];
-
-const GOLD_TRAITS = [
-  { value: 'acrobatic-finisher', label: 'Chuyên gia vô lê', id: 50 },
-  { value: 'cross-poacher', label: 'Sát thủ băng cắt', id: 51 },
-  { value: 'line-breaker', label: 'Bậc thầy chạy chỗ', id: 52 },
-  { value: 'wild-tackler', label: 'Cao thủ tắc bóng', id: 53 },
-  { value: 'chaser', label: 'Chuyên gia đeo bám', id: 54 },
-  { value: '2heart', label: 'Người không phổi', id: 55 },
-  { value: 'fighter', label: 'Chặn đà tấn công', id: 56 },
-  { value: 'gk-quick-reaction', label: 'Phản ứng nhanh (GK)', id: 57 },
-  { value: 'commander', label: 'Nhạc trưởng', id: 59 },
-  { value: 'gk-aerial-dominance', label: 'GK áp đảo không chiến', id: 60 },
-  { value: 'blocker', label: 'Chủ động cản phá', id: 62 },
-  { value: 'speedster', label: 'Siêu bứt tốc', id: 63 },
-  { value: 'titan', label: 'Bậc thầy không chiến', id: 64 },
-  { value: 'trickster', label: 'Ảo thuật gia', id: 65 },
-  { value: 'laser-shooter', label: 'Dứt điểm 1 chạm', id: 66 },
-  { value: 'predator', label: 'Siêu đánh chặn', id: 67 },
-  { value: 'gk-dead-eye', label: 'GK bắt bài sút xa', id: 68 }
-].map((trait) => ({
-  ...trait,
-  iconUrl: `https://s1.fifaaddict.com/fo4/traits/trait_icon_${trait.id}.png?20260720`
-}));
 
 function normalizePlayerIdentity(name) {
   return String(name || '')
@@ -149,8 +125,6 @@ export default function PlayerSearchPicker() {
   const [seasonSearchText, setSeasonSearchText] = useState('');
   const [selectedPosGroup, setSelectedPosGroup] = useState('ALL');
   const [selectedDetailPos, setSelectedDetailPos] = useState('ALL');
-  const [selectedTeamColor, setSelectedTeamColor] = useState('');
-  const [selectedTrait, setSelectedTrait] = useState('');
   const [minOvr, setMinOvr] = useState('');
   const [maxOvr, setMaxOvr] = useState('');
   const [minSalary, setMinSalary] = useState('');
@@ -158,8 +132,6 @@ export default function PlayerSearchPicker() {
 
   // Data state
   const [seasons, setSeasons] = useState([]);
-  const [teamColors, setTeamColors] = useState([]);
-  const [teamColorsLoading, setTeamColorsLoading] = useState(true);
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -183,17 +155,6 @@ export default function PlayerSearchPicker() {
       .catch((err) => console.error('Error fetching seasons:', err));
   }, []);
 
-  // Team Color options and icons come from FIFAaddict's Team Color catalog.
-  useEffect(() => {
-    fetch('/api/team-colors')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setTeamColors(data.data);
-      })
-      .catch((err) => console.error('Error fetching Team Colors:', err))
-      .finally(() => setTeamColorsLoading(false));
-  }, []);
-
   // Search function
   const handleSearch = async (overrideName = null, resetFilters = false) => {
     setLoading(true);
@@ -202,8 +163,6 @@ export default function PlayerSearchPicker() {
       const params = new URLSearchParams();
       if (queryName && queryName.trim()) params.append('playername', queryName.trim());
       if (!resetFilters && selectedClass && selectedClass !== 'ALL') params.append('class', selectedClass);
-      if (!resetFilters && selectedTeamColor) params.append('teamColor', selectedTeamColor);
-      if (!resetFilters && selectedTrait) params.append('trait', selectedTrait);
 
       // Position filter
       let posToQuery = '';
@@ -253,8 +212,6 @@ export default function PlayerSearchPicker() {
     setSeasonSearchText('');
     setSelectedPosGroup('ALL');
     setSelectedDetailPos('ALL');
-    setSelectedTeamColor('');
-    setSelectedTrait('');
     setMinOvr('');
     setMaxOvr('');
     setMinSalary('');
@@ -417,38 +374,6 @@ export default function PlayerSearchPicker() {
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
-        </div>
-
-        {/* Team Color and gold trait filters */}
-        <div className="grid grid-cols-1 gap-2.5">
-          <div>
-            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5">TEAM COLOR</div>
-            <IconFilterDropdown
-              options={teamColors.map((teamColor) => ({
-                value: teamColor.id,
-                label: teamColor.name,
-                iconUrl: teamColor.iconUrl,
-                group: teamColor.typeText
-              }))}
-              value={selectedTeamColor}
-              onChange={setSelectedTeamColor}
-              placeholder="Tất cả Team Color"
-              searchPlaceholder="Tìm đội, quốc gia, Team Color..."
-              loading={teamColorsLoading}
-              grouped
-            />
-          </div>
-
-          <div>
-            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5">GOLD TRAIT</div>
-            <IconFilterDropdown
-              options={GOLD_TRAITS}
-              value={selectedTrait}
-              onChange={setSelectedTrait}
-              placeholder="Tất cả chỉ số ẩn vàng"
-              searchPlaceholder="Tìm chỉ số ẩn vàng..."
-            />
           </div>
         </div>
 
@@ -800,6 +725,13 @@ export default function PlayerSearchPicker() {
               {myTeam && <TeamLogo code={myTeam.code} name={myTeam.name} color={myTeam.color} logoUrl={myTeam.logoUrl} className="w-4 h-4" />}
               <span className="font-extrabold text-neon-cyan">{myTeam?.name}</span>
             </div>
+          </div>
+
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-400">Người chơi:</span>
+            <span className="max-w-44 truncate font-bold text-neon-cyan" title={myTeam?.captainName}>
+              {myTeam?.captainName || 'Chưa có người chơi'}
+            </span>
           </div>
 
           <div className="flex justify-between items-center text-xs">

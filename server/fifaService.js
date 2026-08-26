@@ -6,8 +6,6 @@ const { getSeasonMetadataMaps, getFallbackPresentation } = require('./seasonMeta
 let handshakeToken = null;
 let lastHandshakeTime = 0;
 const cache = new Map();
-let teamColorCache = [];
-let teamColorCacheTime = 0;
 
 const FIFAADDICT_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -41,73 +39,31 @@ async function getHandshakeToken(forceRefresh = false) {
   return handshakeToken;
 }
 
-async function getTeamColors(allowTokenRefresh = true) {
-  const now = Date.now();
-  if (teamColorCache.length > 0 && now - teamColorCacheTime < 86400000) {
-    return teamColorCache;
-  }
+function buildSalaryRange(minSalary, maxSalary) {
+  const parsedMin = minSalary === undefined || minSalary === null || minSalary === ''
+    ? null
+    : parseInt(minSalary, 10);
+  const parsedMax = maxSalary === undefined || maxSalary === null || maxSalary === ''
+    ? null
+    : parseInt(maxSalary, 10);
+  const min = Number.isFinite(parsedMin) && parsedMin >= 0 ? parsedMin : null;
+  const max = Number.isFinite(parsedMax) && parsedMax >= 0 ? parsedMax : null;
 
-  const token = await getHandshakeToken();
-
-  try {
-    const res = await axios.get('https://vn.fifaaddict.com/api2?q=fo4teamcolornew&locale=vn', {
-      headers: {
-        ...FIFAADDICT_HEADERS,
-        'X-ARAIWA': token || ''
-      },
-      timeout: 10000
-    });
-
-    teamColorCache = Object.entries(res.data?.items || {})
-      .map(([id, item]) => ({
-        id,
-        name: item.name,
-        type: item.type,
-        typeText: item.type_text === 'nation' ? 'Quốc gia' : item.type_text,
-        level: Number(item.lv) || 1,
-        iconUrl: `https://s1.fifaaddict.com/fo4/teamcolor/teamcolor_${item.img}.png?20260720`,
-        query: item.search_url || ''
-      }))
-      .sort((a, b) => (
-        Number(a.type) - Number(b.type)
-        || a.name.localeCompare(b.name, 'vi', { numeric: true })
-      ));
-    teamColorCacheTime = now;
-    return teamColorCache;
-  } catch (err) {
-    if (err.response?.status === 401 && allowTokenRefresh) {
-      await getHandshakeToken(true);
-      return getTeamColors(false);
-    }
-    console.error('❌ FIFAaddict Team Color error:', err.message);
-    return [];
-  }
+  if (min !== null && max !== null) return max >= min ? `${min}-${max}` : '';
+  if (min !== null) return String(min);
+  if (max !== null) return `0-${max}`;
+  return '';
 }
 
-async function searchPlayers(filters = {}, allowTokenRefresh = true) {
+function buildPlayerSearchParams(filters = {}) {
   const {
     cardClass = '',
     pos = '',
     playername = '',
-    teamColor = '',
-    trait = '',
-    minOvr,
-    maxOvr,
     minSalary,
     maxSalary
   } = filters;
-
-  const cacheKey = JSON.stringify({ cardClass, pos, playername, teamColor, trait, minOvr, maxOvr, minSalary, maxSalary });
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey);
-  }
-
-  let token = await getHandshakeToken();
-
-  const params = new URLSearchParams({
-    q: 'fo4db',
-    locale: 'vn'
-  });
+  const params = new URLSearchParams({ q: 'fo4db', locale: 'vn' });
 
   if (cardClass && cardClass.toLowerCase() !== 'all') {
     params.append('class', cardClass.toLowerCase().trim());
@@ -116,26 +72,37 @@ async function searchPlayers(filters = {}, allowTokenRefresh = true) {
     // every configured class makes "All" return the source's full 100-row page.
     params.append('class', getAllSeasons().map((season) => season.id).join(','));
   }
-  if (playername && playername.trim()) {
-    params.append('playername', playername.trim());
-  }
-  if (teamColor && teamColor.trim()) {
-    const teamColors = await getTeamColors();
-    const selectedTeamColor = teamColors.find((item) => item.id === teamColor.trim());
-    if (!selectedTeamColor) return [];
+  if (playername && playername.trim()) params.append('playername', playername.trim());
+  if (pos && pos.toLowerCase() !== 'all') params.set('pos', pos.toLowerCase().trim());
 
-    const teamColorParams = new URLSearchParams(selectedTeamColor.query);
-    for (const key of ['team', 'country', 'attr', 'pos', 'birthyear']) {
-      const value = teamColorParams.get(key);
-      if (value) params.set(key, value);
-    }
+  // FIFAaddict caps a response at 100 players. Salary must therefore be sent
+  // upstream (as `fp`) before the local safety filter runs; otherwise low-salary
+  // cards can be absent from the first 100 results entirely.
+  const salaryRange = buildSalaryRange(minSalary, maxSalary);
+  if (salaryRange) params.set('fp', salaryRange);
+
+  return params;
+}
+
+async function searchPlayers(filters = {}, allowTokenRefresh = true) {
+  const {
+    cardClass = '',
+    pos = '',
+    playername = '',
+    minOvr,
+    maxOvr,
+    minSalary,
+    maxSalary
+  } = filters;
+
+  const cacheKey = JSON.stringify({ cardClass, pos, playername, minOvr, maxOvr, minSalary, maxSalary });
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
   }
-  if (pos && pos.toLowerCase() !== 'all') {
-    params.set('pos', pos.toLowerCase().trim());
-  }
-  if (trait && trait.trim()) {
-    params.append('trait', trait.trim());
-  }
+
+  let token = await getHandshakeToken();
+
+  const params = buildPlayerSearchParams({ cardClass, pos, playername, minSalary, maxSalary });
 
   const queryUrl = `https://vn.fifaaddict.com/api2?${params.toString()}`;
 
@@ -228,6 +195,7 @@ async function searchPlayers(filters = {}, allowTokenRefresh = true) {
 
 module.exports = {
   getHandshakeToken,
-  getTeamColors,
-  searchPlayers
+  searchPlayers,
+  buildSalaryRange,
+  buildPlayerSearchParams
 };

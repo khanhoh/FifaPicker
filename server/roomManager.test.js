@@ -84,6 +84,7 @@ test('swap and randomize are locked after the draft starts', () => {
   const fakeIo = { to: () => ({ emit: () => {} }) };
   const participant = room.participants[0];
   const targetTeamId = room.participants[1].teamId;
+  room.draftRoom.prepareDraft(fakeIo);
   room.draftRoom.startDraft(fakeIo);
 
   assert.equal(manager.swapParticipant(room, participant.id, targetTeamId).valid, false);
@@ -98,6 +99,7 @@ test('disconnect during a running draft keeps the timer and turn alive', () => {
   sessions.forEach((session, index) => manager.connect(session.token, `socket-${index}`));
   const fakeIo = { to: () => ({ emit: () => {} }) };
 
+  room.draftRoom.prepareDraft(fakeIo);
   room.draftRoom.startDraft(fakeIo);
   const currentTeamId = room.draftRoom.getCurrentTeam().id;
   manager.disconnect(sessions[0].token, 'socket-0');
@@ -115,6 +117,7 @@ test('a disconnected player keeps the reserved slot after draft start', () => {
   const { sessions, room } = createFullRoom(manager);
   sessions.forEach((session, index) => manager.connect(session.token, `socket-${index}`));
   const fakeIo = { to: () => ({ emit: () => {} }) };
+  room.draftRoom.prepareDraft(fakeIo);
   room.draftRoom.startDraft(fakeIo);
 
   const reservedTeamId = room.participants[1].teamId;
@@ -132,6 +135,7 @@ test('an exited player can resume the same session, team slot and draft data', (
   const { sessions, room } = createFullRoom(manager);
   sessions.forEach((session, index) => manager.connect(session.token, `socket-${index}`));
   const fakeIo = { to: () => ({ emit: () => {} }) };
+  room.draftRoom.prepareDraft(fakeIo);
   room.draftRoom.startDraft(fakeIo);
 
   const session = sessions[1];
@@ -168,6 +172,7 @@ test('draft state is isolated between rooms', () => {
   const second = createFullRoom(manager);
   const fakeIo = { to: () => ({ emit: () => {} }) };
 
+  first.room.draftRoom.prepareDraft(fakeIo);
   first.room.draftRoom.startDraft(fakeIo);
 
   assert.equal(first.room.draftRoom.status, 'drafting');
